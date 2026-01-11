@@ -262,7 +262,15 @@
 
             State.results = results;
 
-            this.renderQA(results.qa?.items || []);
+            // Show detected tool if available
+            this.renderToolBadge(results.tool);
+
+            // Show scan summary
+            this.renderSummary(results);
+
+            // Render grouped Q&A (questions with their answers nested)
+            this.renderQAGrouped(results.qa?.items || [], results.qa?.questions || []);
+
             this.renderAPIs(results.apis || []);
             this.renderCorrect(results.qa?.items?.filter(i => i.correct) || []);
             this.renderLogs(results.logs || []);
@@ -279,35 +287,217 @@
             }
         },
 
-        renderQA(items) {
+        renderToolBadge(tool) {
+            // Add tool detection badge to header area
+            let badge = document.getElementById('tool-badge');
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.id = 'tool-badge';
+                badge.className = 'tool-badge';
+                document.querySelector('.tab-info')?.appendChild(badge);
+            }
+
+            if (tool && tool !== 'generic') {
+                const toolNames = {
+                    storyline: 'Storyline',
+                    rise: 'Rise 360',
+                    captivate: 'Captivate',
+                    lectora: 'Lectora',
+                    ispring: 'iSpring'
+                };
+                badge.textContent = toolNames[tool] || tool;
+                badge.className = `tool-badge ${tool}`;
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
+        },
+
+        renderSummary(results) {
+            let summary = document.getElementById('scan-summary');
+            if (!summary) {
+                summary = document.createElement('div');
+                summary.id = 'scan-summary';
+                summary.className = 'scan-summary';
+                $.qaList?.parentElement?.insertBefore(summary, $.qaList);
+            }
+
+            const qa = results.qa || {};
+            const questions = qa.questions || [];
+            const items = qa.items || [];
+
+            if (items.length === 0) {
+                summary.style.display = 'none';
+                return;
+            }
+
+            // Count by question type
+            const typeCounts = {};
+            questions.forEach(q => {
+                const type = q.questionType || 'choice';
+                typeCounts[type] = (typeCounts[type] || 0) + 1;
+            });
+
+            const typeLabels = {
+                'choice': 'Multiple Choice',
+                'sequencing': 'Sequence',
+                'matching': 'Matching',
+                'true-false': 'True/False',
+                'fill-in': 'Fill-in',
+                'multiple-choice': 'Multi-Select'
+            };
+
+            const typeSummary = Object.entries(typeCounts)
+                .map(([type, count]) => `${typeLabels[type] || type}: ${count}`)
+                .join(' | ');
+
+            const correctCount = items.filter(i => i.correct).length;
+            const answerCount = items.filter(i => i.type === 'answer').length;
+
+            summary.innerHTML = `
+                <div class="summary-row">
+                    <span class="summary-stat"><strong>${questions.length}</strong> Questions</span>
+                    <span class="summary-stat"><strong>${answerCount}</strong> Answers</span>
+                    <span class="summary-stat correct"><strong>${correctCount}</strong> Correct</span>
+                </div>
+                ${typeSummary ? `<div class="summary-types">${typeSummary}</div>` : ''}
+            `;
+            summary.style.display = 'block';
+        },
+
+        renderQAGrouped(items, questions) {
             if (!$.qaList) return;
 
+            // If we have structured questions, use grouped rendering
+            if (questions && questions.length > 0) {
+                this.renderGroupedQuestions(questions);
+                return;
+            }
+
+            // Fallback: group items by inferring structure
             if (items.length === 0) {
                 $.qaList.innerHTML = '<div class="empty-state">No Q&A found. Try scanning the page.</div>';
                 return;
             }
 
-            let questionNum = 0;
-            $.qaList.innerHTML = items.map(item => {
+            // Group items: each question followed by its answers
+            const groups = [];
+            let currentGroup = null;
+
+            items.forEach(item => {
                 if (item.type === 'question') {
-                    questionNum++;
-                    return `
-                        <div class="qa-item question" data-text="${escapeHtml(item.text)}">
-                            <span class="qa-num">Q${questionNum}</span>
-                            <span class="qa-text">${escapeHtml(item.text)}</span>
-                        </div>
-                    `;
-                } else {
-                    const correctClass = item.correct ? 'correct' : '';
-                    const marker = item.correct ? '✓' : '○';
-                    return `
-                        <div class="qa-item answer ${correctClass}" data-text="${escapeHtml(item.text)}">
-                            <span class="qa-marker">${marker}</span>
-                            <span class="qa-text">${escapeHtml(item.text)}</span>
-                        </div>
-                    `;
+                    if (currentGroup) groups.push(currentGroup);
+                    currentGroup = { question: item, answers: [] };
+                } else if (item.type === 'answer' && currentGroup) {
+                    currentGroup.answers.push(item);
+                } else if (item.type === 'answer') {
+                    // Orphan answer - create implicit group
+                    groups.push({ question: null, answers: [item] });
+                } else if (item.type === 'sequence_item' && currentGroup) {
+                    currentGroup.answers.push({ ...item, isSequence: true });
                 }
+            });
+            if (currentGroup) groups.push(currentGroup);
+
+            $.qaList.innerHTML = groups.map((group, idx) => {
+                const qNum = idx + 1;
+                const questionHtml = group.question
+                    ? `<div class="qa-question" data-text="${escapeHtml(group.question.text)}">
+                         <span class="qa-num">Q${qNum}</span>
+                         <span class="qa-text">${escapeHtml(group.question.text)}</span>
+                         ${group.question.questionType ? `<span class="qa-type">${group.question.questionType}</span>` : ''}
+                       </div>`
+                    : `<div class="qa-question orphan"><span class="qa-num">Q${qNum}</span><span class="qa-text">(Question not captured)</span></div>`;
+
+                const answersHtml = group.answers.map(ans => {
+                    const correctClass = ans.correct ? 'correct' : '';
+                    const marker = ans.correct ? '✓' : '○';
+                    const seqPos = ans.isSequence && ans.correctPosition !== null
+                        ? `<span class="seq-pos">#${ans.correctPosition + 1}</span>`
+                        : '';
+                    return `
+                        <div class="qa-answer ${correctClass}" data-text="${escapeHtml(ans.text)}">
+                            <span class="qa-marker">${marker}</span>
+                            <span class="qa-text">${escapeHtml(ans.text)}</span>
+                            ${seqPos}
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="qa-group">
+                        ${questionHtml}
+                        <div class="qa-answers">${answersHtml}</div>
+                    </div>
+                `;
             }).join('');
+        },
+
+        renderGroupedQuestions(questions) {
+            $.qaList.innerHTML = questions.map((q, idx) => {
+                const qNum = idx + 1;
+                const typeLabel = q.questionType || 'choice';
+
+                let answersHtml = '';
+
+                // Regular answers
+                if (q.answers && q.answers.length > 0) {
+                    answersHtml = q.answers.map(ans => {
+                        const correctClass = ans.correct ? 'correct' : '';
+                        const marker = ans.correct ? '✓' : '○';
+                        return `
+                            <div class="qa-answer ${correctClass}" data-text="${escapeHtml(ans.text)}">
+                                <span class="qa-marker">${marker}</span>
+                                <span class="qa-text">${escapeHtml(ans.text)}</span>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                // Sequence items
+                if (q.sequenceItems && q.sequenceItems.length > 0) {
+                    answersHtml = q.sequenceItems
+                        .sort((a, b) => (a.correctPosition || 0) - (b.correctPosition || 0))
+                        .map((item, i) => `
+                            <div class="qa-answer sequence" data-text="${escapeHtml(item.text)}">
+                                <span class="qa-marker seq">${i + 1}</span>
+                                <span class="qa-text">${escapeHtml(item.text)}</span>
+                            </div>
+                        `).join('');
+                }
+
+                // Match pairs
+                if (q.matchPairs && q.matchPairs.length > 0) {
+                    const sources = q.matchPairs.filter(p => p.type === 'match_source');
+                    const targets = q.matchPairs.filter(p => p.type === 'match_target');
+                    answersHtml = sources.map(src => {
+                        const matchedTarget = targets.find(t => t.correctMatch === src.matchId);
+                        return `
+                            <div class="qa-answer match" data-text="${escapeHtml(src.text)}">
+                                <span class="match-source">${escapeHtml(src.text)}</span>
+                                <span class="match-arrow">→</span>
+                                <span class="match-target">${matchedTarget ? escapeHtml(matchedTarget.text) : '?'}</span>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                return `
+                    <div class="qa-group" data-type="${typeLabel}">
+                        <div class="qa-question" data-text="${escapeHtml(q.text)}">
+                            <span class="qa-num">Q${qNum}</span>
+                            <span class="qa-text">${escapeHtml(q.text)}</span>
+                            <span class="qa-type">${typeLabel}</span>
+                        </div>
+                        <div class="qa-answers">${answersHtml}</div>
+                    </div>
+                `;
+            }).join('');
+        },
+
+        renderQA(items) {
+            // Keep for backward compatibility / search filtering
+            this.renderQAGrouped(items, []);
         },
 
         renderAPIs(apis) {
