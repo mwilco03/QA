@@ -268,4 +268,23 @@
 
     log.info('Content script loaded');
 
+    // Report window relationship for better child/popup window detection
+    try {
+        const hasOpener = !!window.opener;
+        const isPopup = window.opener && window.opener !== window;
+        const windowName = window.name || '';
+
+        if (hasOpener || isPopup || windowName) {
+            sendToExtension('WINDOW_INFO', {
+                hasOpener,
+                isPopup,
+                windowName,
+                url: window.location.href
+            });
+            log.info(`Window info: opener=${hasOpener}, popup=${isPopup}, name=${windowName}`);
+        }
+    } catch (e) {
+        // Cross-origin - can't access opener
+    }
+
 })();
