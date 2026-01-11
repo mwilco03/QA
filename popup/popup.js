@@ -942,7 +942,13 @@
                 Renderer.renderAll(payload.results);
                 const qCount = payload.results.qa?.questions || 0;
                 const aCount = payload.results.qa?.items?.filter(i => i.type === 'answer').length || 0;
-                Toast.success(`Extracted ${qCount} questions, ${aCount} answers`);
+                const apiCount = payload.results.apis?.length || 0;
+
+                let msg = `Extracted ${qCount} questions, ${aCount} answers`;
+                if (apiCount > 0) {
+                    msg += `, ${apiCount} API(s)`;
+                }
+                Toast.success(msg);
             }
         },
 

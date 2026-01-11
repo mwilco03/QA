@@ -10,6 +10,8 @@ A Chrome extension for extracting Q&A content from Learning Management System (L
 - **URL Pattern Rules**: Rules saved per URL pattern, reused on return visits
 - **DOM Proximity Grouping**: Intelligently groups answers with their questions
 - **Correct Answer Detection**: Pick elements that indicate correct answers
+- **Hybrid Extraction**: Automatically detects SCORM/xAPI APIs alongside Q&A extraction
+- **Export/Import Rules**: Share selector rules between team members or LMS instances
 
 ### Content Extraction
 - **Storyline Support**: Extracts Q&A from Articulate Storyline courses by analyzing slide data
@@ -17,7 +19,8 @@ A Chrome extension for extracting Q&A content from Learning Management System (L
 - **Visual Selector**: User-guided element picking for any LMS layout
 
 ### SCORM/xAPI Integration
-- **API Detection**: Finds SCORM 1.2, SCORM 2004, xAPI, and AICC APIs
+- **API Detection**: Finds SCORM 1.2, SCORM 2004, xAPI (TCAPI/Tin Can), and AICC APIs
+- **Wrapper Support**: Detects pipwerks, xAPIWrapper, ADL, and TinCanAPI libraries
 - **API Testing**: Verify API connectivity and functionality
 - **Completion Control**: Set completion status and scores directly
 
@@ -215,6 +218,9 @@ Open `tests/test-runner.html` in a browser to run unit tests.
 - **Visual Element Selector**: Pick Q&A elements directly on the page
 - **URL Pattern Rules**: Save and reuse selectors per LMS
 - **DOM Proximity Grouping**: Correlate questions with their answers
+- **Hybrid Extraction**: Selector-based Q&A + automatic SCORM/xAPI API detection
+- **Export/Import Rules**: Share selector rules as JSON files
+- **Enhanced API Detection**: Added TCAPI, TinCanAPI, xAPIWrapper, ADL support
 - **Smart CSS Generation**: 6 strategies for robust selectors
 - Removed unused constants.js
 

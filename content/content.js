@@ -26,7 +26,8 @@
         PING: 'PING',
         ACTIVATE_SELECTOR: 'ACTIVATE_SELECTOR',
         DEACTIVATE_SELECTOR: 'DEACTIVATE_SELECTOR',
-        APPLY_SELECTOR_RULE: 'APPLY_SELECTOR_RULE'
+        APPLY_SELECTOR_RULE: 'APPLY_SELECTOR_RULE',
+        DETECT_APIS: 'DETECT_APIS'
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -220,14 +221,33 @@
         },
 
         [CMD.APPLY_SELECTOR_RULE]: (message) => {
+            const hybrid = message.hybrid !== false; // Default to hybrid mode
+
+            // For hybrid mode, ensure validator is injected for API detection
+            if (hybrid && !isInjected) {
+                injectValidator();
+            }
+
             // Inject selector if not already, then send apply command
             if (!isSelectorInjected) {
                 injectSelector(false);
+                // Wait longer if both scripts need to load
+                const delay = (hybrid && !isInjected) ? 200 : 100;
                 setTimeout(() => {
-                    sendToPage('CMD_APPLY_RULE', { rule: message.rule });
-                }, 100);
+                    sendToPage('CMD_APPLY_RULE', { rule: message.rule, hybrid });
+                }, delay);
             } else {
-                sendToPage('CMD_APPLY_RULE', { rule: message.rule });
+                sendToPage('CMD_APPLY_RULE', { rule: message.rule, hybrid });
+            }
+            return { success: true };
+        },
+
+        [CMD.DETECT_APIS]: () => {
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_DETECT_APIS'), 100);
+            } else {
+                sendToPage('CMD_DETECT_APIS');
             }
             return { success: true };
         }
