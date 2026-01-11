@@ -1,14 +1,15 @@
 /**
- * LMS QA Validator - Popup v3.0
- * Extension popup interface
- * 
+ * LMS QA Validator - Popup v4.0
+ * Intentional workflow-driven interface
+ *
  * Architecture:
- * - Modular components with clear responsibilities
- * - Centralized state management
- * - Consistent event handling
- * - Debounced operations where appropriate
- * 
- * @fileoverview Main popup script
+ * - Activation gate: Only run when appropriate
+ * - Framework detection: Identify what we're working with first
+ * - User-driven workflow: Prompt user for next action
+ * - Operation feedback: Show exactly what's happening
+ * - Conditional UI: Only show relevant controls
+ *
+ * @fileoverview Main popup script with workflow management
  */
 
 (function() {
@@ -35,15 +36,37 @@
         SELECTOR_RULE_CREATED: 'SELECTOR_RULE_CREATED',
         EXTRACTION_COMPLETE: 'EXTRACTION_COMPLETE',
         EXTRACTION_ERROR: 'EXTRACTION_ERROR',
-        SELECTOR_INJECTION_FAILED: 'SELECTOR_INJECTION_FAILED'
+        SELECTOR_INJECTION_FAILED: 'SELECTOR_INJECTION_FAILED',
+        FRAMEWORK_DETECTED: 'FRAMEWORK_DETECTED',
+        DETECTION_COMPLETE: 'DETECTION_COMPLETE'
     });
 
     const STATUS = Object.freeze({
         READY: { text: 'Ready', class: 'ready' },
+        INACTIVE: { text: 'Inactive', class: 'inactive' },
+        DETECTING: { text: 'Detecting...', class: 'scanning' },
         SCANNING: { text: 'Scanning...', class: 'scanning' },
         SUCCESS: { text: 'Complete', class: 'success' },
         ERROR: { text: 'Error', class: 'error' }
     });
+
+    // Workflow states
+    const WORKFLOW = Object.freeze({
+        GATE: 'gate',           // Activation gate - checking if we should run
+        DETECTING: 'detecting', // Framework detection in progress
+        DETECTED: 'detected',   // Framework found, waiting for user action
+        OPERATING: 'operating', // Operation in progress
+        RESULTS: 'results',     // Showing results
+        IDLE: 'idle'            // Ready for manual actions
+    });
+
+    // LMS URL patterns for activation check
+    const LMS_URL_PATTERNS = [
+        /scorm/i, /lms/i, /learn/i, /training/i, /course/i,
+        /articulate/i, /storyline/i, /captivate/i, /lectora/i,
+        /bravo/i, /moodle/i, /blackboard/i, /canvas/i,
+        /ispring/i, /rise360/i, /xapi/i
+    ];
 
     // ═══════════════════════════════════════════════════════════════════════════
     // UTILITIES
@@ -78,230 +101,10 @@
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // HTML TEMPLATES
-    // Centralized template functions for consistent rendering
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    const Templates = {
-        emptyState(message) {
-            const div = document.createElement('div');
-            div.className = 'empty-state';
-            div.textContent = message;
-            return div;
-        },
-
-        qaGroup(question, answers, qNum, questionType) {
-            const group = document.createElement('div');
-            group.className = 'qa-group';
-            if (questionType) group.dataset.type = questionType;
-
-            // Question
-            const qDiv = document.createElement('div');
-            qDiv.className = question ? 'qa-question' : 'qa-question orphan';
-            qDiv.dataset.text = question?.text || '';
-
-            const numSpan = document.createElement('span');
-            numSpan.className = 'qa-num';
-            numSpan.textContent = `Q${qNum}`;
-            qDiv.appendChild(numSpan);
-
-            const textSpan = document.createElement('span');
-            textSpan.className = 'qa-text';
-            textSpan.textContent = question?.text || '(Question not captured)';
-            qDiv.appendChild(textSpan);
-
-            if (questionType) {
-                const typeSpan = document.createElement('span');
-                typeSpan.className = 'qa-type';
-                typeSpan.textContent = questionType;
-                qDiv.appendChild(typeSpan);
-            }
-
-            group.appendChild(qDiv);
-
-            // Answers container
-            const answersDiv = document.createElement('div');
-            answersDiv.className = 'qa-answers';
-            answers.forEach(ans => answersDiv.appendChild(ans));
-            group.appendChild(answersDiv);
-
-            return group;
-        },
-
-        qaAnswer(text, isCorrect, markerContent = null) {
-            const div = document.createElement('div');
-            div.className = 'qa-answer' + (isCorrect ? ' correct' : '');
-            div.dataset.text = text;
-
-            const marker = document.createElement('span');
-            marker.className = 'qa-marker';
-            marker.textContent = markerContent || (isCorrect ? '✓' : '○');
-            div.appendChild(marker);
-
-            const textSpan = document.createElement('span');
-            textSpan.className = 'qa-text';
-            textSpan.textContent = text;
-            div.appendChild(textSpan);
-
-            return div;
-        },
-
-        sequenceAnswer(text, position) {
-            const div = document.createElement('div');
-            div.className = 'qa-answer sequence';
-            div.dataset.text = text;
-
-            const marker = document.createElement('span');
-            marker.className = 'qa-marker seq';
-            marker.textContent = String(position);
-            div.appendChild(marker);
-
-            const textSpan = document.createElement('span');
-            textSpan.className = 'qa-text';
-            textSpan.textContent = text;
-            div.appendChild(textSpan);
-
-            return div;
-        },
-
-        matchAnswer(sourceText, targetText) {
-            const div = document.createElement('div');
-            div.className = 'qa-answer match';
-            div.dataset.text = sourceText;
-
-            const source = document.createElement('span');
-            source.className = 'match-source';
-            source.textContent = sourceText;
-            div.appendChild(source);
-
-            const arrow = document.createElement('span');
-            arrow.className = 'match-arrow';
-            arrow.textContent = '→';
-            div.appendChild(arrow);
-
-            const target = document.createElement('span');
-            target.className = 'match-target';
-            target.textContent = targetText || '?';
-            div.appendChild(target);
-
-            return div;
-        },
-
-        correctItem(text, index) {
-            const div = document.createElement('div');
-            div.className = 'correct-item';
-            div.dataset.text = text;
-
-            const num = document.createElement('span');
-            num.className = 'correct-num';
-            num.textContent = `${index + 1}.`;
-            div.appendChild(num);
-
-            const textSpan = document.createElement('span');
-            textSpan.className = 'correct-text';
-            textSpan.textContent = text;
-            div.appendChild(textSpan);
-
-            return div;
-        },
-
-        apiItem(api, index) {
-            const div = document.createElement('div');
-            div.className = 'api-item';
-            div.dataset.index = index;
-
-            const header = document.createElement('div');
-            header.className = 'api-header';
-
-            const typeSpan = document.createElement('span');
-            typeSpan.className = 'api-type';
-            typeSpan.textContent = api.type;
-
-            const statusSpan = document.createElement('span');
-            statusSpan.className = 'api-status' + (api.functional ? ' functional' : '');
-            statusSpan.textContent = api.functional ? 'Active' : 'Found';
-
-            header.appendChild(typeSpan);
-            header.appendChild(statusSpan);
-            div.appendChild(header);
-
-            const location = document.createElement('div');
-            location.className = 'api-location';
-            location.textContent = api.location;
-            div.appendChild(location);
-
-            if (api.methods && api.methods.length > 0) {
-                const methods = document.createElement('div');
-                methods.className = 'api-methods';
-                methods.textContent = api.methods.join(', ');
-                div.appendChild(methods);
-            }
-
-            return div;
-        },
-
-        logItem(log) {
-            const div = document.createElement('div');
-            div.className = 'log-item ' + (log.level?.toLowerCase() || 'info');
-
-            const time = document.createElement('span');
-            time.className = 'log-time';
-            time.textContent = log.timestamp?.split('T')[1]?.split('.')[0] || '';
-            div.appendChild(time);
-
-            const level = document.createElement('span');
-            level.className = 'log-level';
-            level.textContent = log.level || 'INFO';
-            div.appendChild(level);
-
-            const msg = document.createElement('span');
-            msg.className = 'log-msg';
-            msg.textContent = log.message;
-            div.appendChild(msg);
-
-            return div;
-        },
-
-        scanSummary(questionCount, answerCount, correctCount, typeBreakdown) {
-            const div = document.createElement('div');
-            div.id = 'scan-summary';
-            div.className = 'scan-summary';
-
-            const row = document.createElement('div');
-            row.className = 'summary-row';
-
-            const qStat = this.summaryStatElement(questionCount, 'Questions');
-            const aStat = this.summaryStatElement(answerCount, 'Answers');
-            const cStat = this.summaryStatElement(correctCount, 'Correct', 'correct');
-
-            row.appendChild(qStat);
-            row.appendChild(aStat);
-            row.appendChild(cStat);
-            div.appendChild(row);
-
-            if (typeBreakdown) {
-                const types = document.createElement('div');
-                types.className = 'summary-types';
-                types.textContent = typeBreakdown;
-                div.appendChild(types);
-            }
-
-            return div;
-        },
-
-        summaryStatElement(value, label, extraClass = '') {
-            const span = document.createElement('span');
-            span.className = 'summary-stat' + (extraClass ? ' ' + extraClass : '');
-
-            const strong = document.createElement('strong');
-            strong.textContent = value;
-            span.appendChild(strong);
-            span.appendChild(document.createTextNode(' ' + label));
-
-            return span;
-        }
-    };
+    function isLikelyLMSUrl(url) {
+        if (!url) return false;
+        return LMS_URL_PATTERNS.some(pattern => pattern.test(url));
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // STATE MANAGEMENT
@@ -313,12 +116,20 @@
         results: null,
         currentRule: null,
         selectorActive: false,
+        workflow: WORKFLOW.GATE,
+        isActivated: false,
+        detectedFramework: null,
+        detectedAPIs: [],
+        quickActions: [],
+        lastOperation: null,
         settings: {
             autoScan: false
         },
 
         reset() {
             this.results = null;
+            this.detectedFramework = null;
+            this.detectedAPIs = [];
         },
 
         hasResults() {
@@ -331,6 +142,11 @@
 
         getAPIs() {
             return this.results?.apis || [];
+        },
+
+        setWorkflow(state) {
+            this.workflow = state;
+            WorkflowUI.update();
         }
     };
 
@@ -343,19 +159,25 @@
     function cacheElements() {
         const ids = [
             'tab-url', 'status-indicator',
-            'btn-scan', 'btn-clear',
+            'activation-gate', 'gate-reason', 'btn-force-activate', 'btn-import-rules-gate',
+            'framework-panel', 'framework-icon', 'framework-name', 'framework-details',
+            'btn-extract-qa', 'btn-complete-course', 'btn-skip-detection',
+            'main-actions', 'btn-scan', 'btn-clear',
             'progress-container', 'progress-fill', 'progress-text',
+            'operation-feedback', 'operation-icon', 'operation-status', 'operation-details',
+            'operation-result', 'btn-retry-operation', 'btn-try-alternative', 'btn-save-config',
             'validation-warnings',
             'related-windows', 'related-list', 'btn-refresh-related',
+            'quick-actions-saved', 'quick-actions-list', 'quick-actions-count',
             'search-container', 'search-input', 'search-count',
-            'results-tabs', 'qa-list', 'apis-list', 'correct-list', 'logs-list',
+            'results-tabs', 'tab-panels', 'qa-list', 'apis-list', 'correct-list', 'logs-list',
             'qa-count', 'apis-count', 'correct-count', 'logs-count',
             'scorm-controls', 'completion-status', 'completion-score',
             'btn-test-api', 'btn-set-completion', 'btn-copy-all-correct',
-            'quick-actions', 'btn-auto-select', 'btn-element-selector',
+            'element-picker', 'btn-auto-select', 'btn-element-selector',
             'saved-rules', 'rule-info', 'btn-apply-rule', 'btn-delete-rule',
             'rules-management', 'rules-count', 'btn-export-rules', 'btn-import-rules', 'rules-file-input',
-            'btn-export-json', 'btn-export-csv', 'btn-export-txt',
+            'export-actions', 'btn-export-json', 'btn-export-csv', 'btn-export-txt',
             'toast'
         ];
 
@@ -370,16 +192,112 @@
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // WORKFLOW UI MANAGEMENT
+    // Controls what's visible based on current workflow state
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const WorkflowUI = {
+        update() {
+            const state = State.workflow;
+            const hasResults = State.hasResults();
+            const hasAPIs = State.getAPIs().length > 0;
+
+            // Hide all workflow panels first
+            this.hideAll();
+
+            switch (state) {
+                case WORKFLOW.GATE:
+                    this.showGate();
+                    break;
+                case WORKFLOW.DETECTING:
+                    this.showDetecting();
+                    break;
+                case WORKFLOW.DETECTED:
+                    this.showDetected();
+                    break;
+                case WORKFLOW.OPERATING:
+                    this.showOperating();
+                    break;
+                case WORKFLOW.RESULTS:
+                case WORKFLOW.IDLE:
+                    this.showMain(hasResults, hasAPIs);
+                    break;
+            }
+        },
+
+        hideAll() {
+            $.activationGate?.classList.remove('active');
+            $.frameworkPanel?.classList.remove('active');
+            $.mainActions?.classList.remove('active');
+            $.operationFeedback?.classList.remove('active');
+            $.progressContainer?.classList.remove('active');
+            $.searchContainer?.classList.remove('active', 'has-results');
+            $.resultsTabs?.classList.remove('active');
+            $.tabPanels?.classList.remove('active');
+            $.scormControls?.classList.remove('active');
+            $.elementPicker?.classList.remove('active');
+            $.exportActions?.classList.remove('active');
+            $.quickActionsSaved?.classList.remove('active');
+        },
+
+        showGate() {
+            $.activationGate?.classList.add('active');
+            UI.setStatus(STATUS.INACTIVE);
+        },
+
+        showDetecting() {
+            $.progressContainer?.classList.add('active');
+            UI.setStatus(STATUS.DETECTING);
+            UI.setProgress(1, 2, 'Detecting framework...');
+        },
+
+        showDetected() {
+            $.frameworkPanel?.classList.add('active');
+            UI.setStatus(STATUS.READY);
+        },
+
+        showOperating() {
+            $.operationFeedback?.classList.add('active');
+            $.progressContainer?.classList.add('active');
+        },
+
+        showMain(hasResults, hasAPIs) {
+            $.mainActions?.classList.add('active');
+            $.elementPicker?.classList.add('active');
+            $.rulesManagement?.classList.add('active');
+
+            if (hasResults) {
+                $.searchContainer?.classList.add('active', 'has-results');
+                $.resultsTabs?.classList.add('active');
+                $.tabPanels?.classList.add('active');
+                $.exportActions?.classList.add('active');
+            }
+
+            if (hasAPIs) {
+                $.scormControls?.classList.add('active');
+            }
+
+            // Show quick actions if we have saved configs
+            if (State.quickActions.length > 0) {
+                $.quickActionsSaved?.classList.add('active');
+                UI.updateBadge($.quickActionsCount, State.quickActions.length);
+            }
+
+            UI.setStatus(hasResults ? STATUS.SUCCESS : STATUS.READY);
+        }
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // UI UPDATES
     // ═══════════════════════════════════════════════════════════════════════════
 
     const UI = {
         setStatus(status) {
             if (!$.statusIndicator) return;
-            
+
             const dot = $.statusIndicator.querySelector('.status-dot');
             const text = $.statusIndicator.querySelector('.status-text');
-            
+
             if (dot) {
                 dot.className = 'status-dot';
                 if (status.class) dot.classList.add(status.class);
@@ -391,7 +309,7 @@
             if (!$.progressContainer) return;
 
             $.progressContainer.classList.add('active');
-            
+
             const percent = (step / total) * 100;
             if ($.progressFill) $.progressFill.style.width = `${percent}%`;
             if ($.progressText) $.progressText.textContent = message || `Step ${step} of ${total}`;
@@ -417,12 +335,6 @@
             }
         },
 
-        showSearchContainer(show) {
-            if ($.searchContainer) {
-                $.searchContainer.classList.toggle('has-results', show);
-            }
-        },
-
         setSearchCount(matched, total) {
             if ($.searchCount) {
                 $.searchCount.textContent = matched < total ? `${matched} of ${total}` : '';
@@ -432,6 +344,87 @@
         clearSearch() {
             if ($.searchInput) $.searchInput.value = '';
             if ($.searchCount) $.searchCount.textContent = '';
+        },
+
+        setGateReason(reason) {
+            if ($.gateReason) {
+                $.gateReason.textContent = reason;
+            }
+        },
+
+        setFrameworkInfo(framework, details) {
+            const toolNames = {
+                storyline: 'Articulate Storyline',
+                rise: 'Articulate Rise 360',
+                captivate: 'Adobe Captivate',
+                lectora: 'Lectora',
+                ispring: 'iSpring',
+                camtasia: 'Camtasia',
+                generic: 'Unknown Framework'
+            };
+
+            if ($.frameworkName) {
+                $.frameworkName.textContent = toolNames[framework] || framework || 'Unknown';
+            }
+
+            if ($.frameworkDetails && details) {
+                $.frameworkDetails.innerHTML = `
+                    <div class="detail-row">
+                        <span class="detail-label">APIs Found:</span>
+                        <span class="detail-value">${details.apiCount || 0}</span>
+                    </div>
+                    ${details.potentialQA ? `
+                    <div class="detail-row">
+                        <span class="detail-label">Potential Q&A:</span>
+                        <span class="detail-value">${details.potentialQA}</span>
+                    </div>` : ''}
+                    ${details.slideCount ? `
+                    <div class="detail-row">
+                        <span class="detail-label">Slides:</span>
+                        <span class="detail-value">${details.slideCount}</span>
+                    </div>` : ''}
+                `;
+            }
+
+            // Update icon based on framework
+            if ($.frameworkIcon) {
+                $.frameworkIcon.className = 'framework-icon ' + (framework || 'generic');
+            }
+        },
+
+        setOperationStatus(status, details = []) {
+            if ($.operationStatus) {
+                $.operationStatus.textContent = status;
+            }
+
+            if ($.operationDetails && details.length > 0) {
+                $.operationDetails.innerHTML = details.map(d => `
+                    <div class="operation-step ${d.status || ''}">
+                        <span class="step-icon">${d.status === 'done' ? '✓' : d.status === 'error' ? '✗' : '○'}</span>
+                        <span class="step-text">${escapeHtml(d.text)}</span>
+                    </div>
+                `).join('');
+            }
+        },
+
+        setOperationResult(success, message, canRetry = false, hasAlternative = false) {
+            if ($.operationResult) {
+                $.operationResult.innerHTML = `
+                    <div class="result-message ${success ? 'success' : 'error'}">
+                        ${escapeHtml(message)}
+                    </div>
+                `;
+            }
+
+            if ($.btnRetryOperation) {
+                $.btnRetryOperation.style.display = canRetry ? 'inline-flex' : 'none';
+            }
+            if ($.btnTryAlternative) {
+                $.btnTryAlternative.style.display = hasAlternative ? 'inline-flex' : 'none';
+            }
+            if ($.btnSaveConfig) {
+                $.btnSaveConfig.style.display = success ? 'inline-flex' : 'none';
+            }
         }
     };
 
@@ -479,6 +472,49 @@
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // TEMPLATES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const Templates = {
+        emptyState(message) {
+            const div = document.createElement('div');
+            div.className = 'empty-state';
+            div.textContent = message;
+            return div;
+        },
+
+        correctItem(text, idx) {
+            const div = document.createElement('div');
+            div.className = 'correct-item';
+            div.dataset.text = text;
+
+            const num = document.createElement('span');
+            num.className = 'correct-num';
+            num.textContent = `${idx + 1}.`;
+            div.appendChild(num);
+
+            const textSpan = document.createElement('span');
+            textSpan.className = 'correct-text';
+            textSpan.textContent = text;
+            div.appendChild(textSpan);
+
+            return div;
+        },
+
+        quickActionItem(config, idx) {
+            return `
+                <div class="quick-action-item" data-index="${idx}">
+                    <div class="qa-info">
+                        <span class="qa-domain">${escapeHtml(config.domain)}</span>
+                        <span class="qa-type">${escapeHtml(config.type)}</span>
+                    </div>
+                    <button class="btn btn-sm btn-primary btn-run-quick" data-index="${idx}">Run</button>
+                </div>
+            `;
+        }
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // RESULTS RENDERING
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -488,15 +524,9 @@
 
             State.results = results;
 
-            // Show detected tool if available
             this.renderToolBadge(results.tool);
-
-            // Show scan summary
             this.renderSummary(results);
-
-            // Render grouped Q&A (questions with their answers nested)
             this.renderQAGrouped(results.qa?.items || [], results.qa?.questions || []);
-
             this.renderAPIs(results.apis || []);
             this.renderCorrect(results.qa?.items?.filter(i => i.correct) || []);
             this.renderLogs(results.logs || []);
@@ -506,15 +536,11 @@
             UI.updateBadge($.correctCount, results.qa?.correct || 0);
             UI.updateBadge($.logsCount, results.logs?.length || 0);
 
-            UI.showSearchContainer(State.hasResults());
-
-            if (results.apis?.length > 0) {
-                $.scormControls?.classList.add('active');
-            }
+            // Update workflow state to show results
+            State.setWorkflow(WORKFLOW.RESULTS);
         },
 
         renderToolBadge(tool) {
-            // Add tool detection badge to header area
             let badge = document.getElementById('tool-badge');
             if (!badge) {
                 badge = document.createElement('div');
@@ -558,7 +584,6 @@
                 return;
             }
 
-            // Count by question type
             const typeCounts = {};
             questions.forEach(q => {
                 const type = q.questionType || 'choice';
@@ -595,19 +620,16 @@
         renderQAGrouped(items, questions) {
             if (!$.qaList) return;
 
-            // If we have structured questions, use grouped rendering
             if (questions && questions.length > 0) {
                 this.renderGroupedQuestions(questions);
                 return;
             }
 
-            // Fallback: group items by inferring structure
             if (items.length === 0) {
                 $.qaList.innerHTML = '<div class="empty-state">No Q&A found. Try scanning the page.</div>';
                 return;
             }
 
-            // Group items: each question followed by its answers
             const groups = [];
             let currentGroup = null;
 
@@ -618,7 +640,6 @@
                 } else if (item.type === 'answer' && currentGroup) {
                     currentGroup.answers.push(item);
                 } else if (item.type === 'answer') {
-                    // Orphan answer - create implicit group
                     groups.push({ question: null, answers: [item] });
                 } else if (item.type === 'sequence_item' && currentGroup) {
                     currentGroup.answers.push({ ...item, isSequence: true });
@@ -632,21 +653,16 @@
                     ? `<div class="qa-question" data-text="${escapeHtml(group.question.text)}">
                          <span class="qa-num">Q${qNum}</span>
                          <span class="qa-text">${escapeHtml(group.question.text)}</span>
-                         ${group.question.questionType ? `<span class="qa-type">${group.question.questionType}</span>` : ''}
                        </div>`
                     : `<div class="qa-question orphan"><span class="qa-num">Q${qNum}</span><span class="qa-text">(Question not captured)</span></div>`;
 
                 const answersHtml = group.answers.map(ans => {
                     const correctClass = ans.correct ? 'correct' : '';
                     const marker = ans.correct ? '✓' : '○';
-                    const seqPos = ans.isSequence && ans.correctPosition !== null
-                        ? `<span class="seq-pos">#${ans.correctPosition + 1}</span>`
-                        : '';
                     return `
                         <div class="qa-answer ${correctClass}" data-text="${escapeHtml(ans.text)}">
                             <span class="qa-marker">${marker}</span>
                             <span class="qa-text">${escapeHtml(ans.text)}</span>
-                            ${seqPos}
                         </div>
                     `;
                 }).join('');
@@ -667,7 +683,6 @@
 
                 let answersHtml = '';
 
-                // Regular answers
                 if (q.answers && q.answers.length > 0) {
                     answersHtml = q.answers.map(ans => {
                         const correctClass = ans.correct ? 'correct' : '';
@@ -681,7 +696,6 @@
                     }).join('');
                 }
 
-                // Sequence items
                 if (q.sequenceItems && q.sequenceItems.length > 0) {
                     answersHtml = q.sequenceItems
                         .sort((a, b) => (a.correctPosition || 0) - (b.correctPosition || 0))
@@ -693,7 +707,6 @@
                         `).join('');
                 }
 
-                // Match pairs
                 if (q.matchPairs && q.matchPairs.length > 0) {
                     const sources = q.matchPairs.filter(p => p.type === 'match_source');
                     const targets = q.matchPairs.filter(p => p.type === 'match_target');
@@ -723,7 +736,6 @@
         },
 
         renderQA(items) {
-            // Keep for backward compatibility / search filtering
             this.renderQAGrouped(items, []);
         },
 
@@ -750,7 +762,6 @@
         renderCorrect(items) {
             if (!$.correctList) return;
 
-            // Update copy all button state
             if ($.btnCopyAllCorrect) {
                 $.btnCopyAllCorrect.disabled = items.length === 0;
             }
@@ -796,22 +807,32 @@
 
             const icons = { parent: '↑', child: '↓', sibling: '↔', 'domain-session': '🌐', 'cross-domain': '🔗' };
 
-            $.relatedList.innerHTML = tabs.map(tab => {
-                const domainInfo = tab.domain ? ` (${tab.domain})` : '';
-                const tooltip = tab.relationship === 'cross-domain'
-                    ? `Cross-domain: ${tab.domain}`
-                    : tab.relationship;
-                return `
+            $.relatedList.innerHTML = tabs.map(tab => `
                 <div class="related-tab" data-tab-id="${tab.id}">
-                    <span class="related-icon" title="${tooltip}">${icons[tab.relationship] || '?'}</span>
-                    <span class="related-title" title="${escapeHtml(tab.title)}${domainInfo}">${truncate(tab.title, 30)}</span>
+                    <span class="related-icon" title="${tab.relationship}">${icons[tab.relationship] || '?'}</span>
+                    <span class="related-title" title="${escapeHtml(tab.title)}">${truncate(tab.title, 30)}</span>
                     <div class="related-actions">
                         <button class="btn-sm btn-pick-tab" data-tab-id="${tab.id}" title="Pick Q&A Elements">Pick</button>
                         <button class="btn-sm btn-scan-tab" data-tab-id="${tab.id}" title="Pattern Scan">Scan</button>
                         <button class="btn-sm btn-focus-tab" data-tab-id="${tab.id}" title="Focus Window">Go</button>
                     </div>
-                </div>`;
-            }).join('');
+                </div>`).join('');
+        },
+
+        renderQuickActions(actions) {
+            if (!$.quickActionsList) return;
+
+            if (actions.length === 0) {
+                $.quickActionsSaved?.classList.remove('active');
+                return;
+            }
+
+            $.quickActionsSaved?.classList.add('active');
+            UI.updateBadge($.quickActionsCount, actions.length);
+
+            $.quickActionsList.innerHTML = actions.map((config, idx) =>
+                Templates.quickActionItem(config, idx)
+            ).join('');
         }
     };
 
@@ -825,21 +846,20 @@
             if (items.length === 0) return;
 
             const normalizedQuery = query.toLowerCase().trim();
-            
+
             if (!normalizedQuery) {
                 Renderer.renderQA(items);
                 UI.setSearchCount(items.length, items.length);
                 return;
             }
 
-            const filtered = items.filter(item => 
+            const filtered = items.filter(item =>
                 item.text?.toLowerCase().includes(normalizedQuery)
             );
 
             Renderer.renderQA(filtered);
             UI.setSearchCount(filtered.length, items.length);
 
-            // Update correct tab too
             const correctFiltered = filtered.filter(i => i.correct);
             Renderer.renderCorrect(correctFiltered);
         }, DEBOUNCE_DELAY),
@@ -887,26 +907,162 @@
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // ACTIVATION GATE
+    // Determines if extension should be active on this page
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const ActivationGate = {
+        async check() {
+            const url = State.tabUrl;
+
+            // Check 1: Is this a likely LMS URL?
+            if (isLikelyLMSUrl(url)) {
+                return { active: true, reason: 'LMS URL pattern detected' };
+            }
+
+            // Check 2: Do we have saved rules for this domain?
+            const urlPattern = Actions.getURLPattern(url);
+            if (urlPattern) {
+                const response = await Extension.sendToServiceWorker('GET_SELECTOR_RULES', { urlPattern });
+                if (response?.rules) {
+                    return { active: true, reason: 'Saved rules found', hasRules: true };
+                }
+            }
+
+            // Check 3: Check if we have any quick actions for this domain
+            const domain = this.getDomain(url);
+            const quickActions = await this.loadQuickActionsForDomain(domain);
+            if (quickActions.length > 0) {
+                State.quickActions = quickActions;
+                return { active: true, reason: 'Quick actions available', quickActions };
+            }
+
+            // Not activated - show gate
+            return {
+                active: false,
+                reason: 'This doesn\'t appear to be an LMS page. Activate manually if needed.'
+            };
+        },
+
+        getDomain(url) {
+            try {
+                return new URL(url).hostname;
+            } catch {
+                return null;
+            }
+        },
+
+        async loadQuickActionsForDomain(domain) {
+            try {
+                const data = await chrome.storage.local.get('quickActions');
+                const allActions = data.quickActions || [];
+                return allActions.filter(a => a.domain === domain);
+            } catch {
+                return [];
+            }
+        },
+
+        activate() {
+            State.isActivated = true;
+            State.setWorkflow(WORKFLOW.IDLE);
+        }
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // ACTIONS
     // ═══════════════════════════════════════════════════════════════════════════
 
     const Actions = {
+        async detect() {
+            State.setWorkflow(WORKFLOW.DETECTING);
+
+            try {
+                const response = await Extension.sendToContent('DETECT_FRAMEWORK');
+
+                if (response?.framework) {
+                    State.detectedFramework = response.framework;
+                    State.detectedAPIs = response.apis || [];
+
+                    UI.setFrameworkInfo(response.framework, {
+                        apiCount: response.apis?.length || 0,
+                        potentialQA: response.potentialQA,
+                        slideCount: response.slideCount
+                    });
+
+                    State.setWorkflow(WORKFLOW.DETECTED);
+                } else {
+                    // No framework detected, go to manual mode
+                    State.setWorkflow(WORKFLOW.IDLE);
+                    Toast.info('No framework detected - use manual scan');
+                }
+            } catch (error) {
+                State.setWorkflow(WORKFLOW.IDLE);
+                Toast.error('Detection failed: ' + error.message);
+            }
+        },
+
         async scan() {
             try {
                 $.btnScan.disabled = true;
+                State.setWorkflow(WORKFLOW.OPERATING);
                 UI.setStatus(STATUS.SCANNING);
-                
+                UI.setOperationStatus('Scanning page...', [
+                    { text: 'Discovering APIs', status: 'pending' },
+                    { text: 'Detecting framework', status: 'pending' },
+                    { text: 'Extracting Q&A', status: 'pending' }
+                ]);
+
                 await Extension.sendToContent('SCAN');
             } catch (error) {
                 UI.setStatus(STATUS.ERROR);
+                UI.setOperationResult(false, 'Scan failed: ' + error.message, true, false);
                 Toast.error('Failed to start scan: ' + error.message);
                 $.btnScan.disabled = false;
             }
         },
 
+        async extractQA() {
+            State.setWorkflow(WORKFLOW.OPERATING);
+            State.lastOperation = { type: 'extract', framework: State.detectedFramework };
+
+            UI.setOperationStatus('Extracting Q&A...', [
+                { text: `Using ${State.detectedFramework || 'generic'} extractor`, status: 'active' }
+            ]);
+
+            try {
+                await Extension.sendToContent('SCAN');
+            } catch (error) {
+                UI.setOperationResult(false, 'Extraction failed: ' + error.message, true, true);
+            }
+        },
+
+        async completeCourse() {
+            State.setWorkflow(WORKFLOW.OPERATING);
+            State.lastOperation = { type: 'complete', framework: State.detectedFramework };
+
+            UI.setOperationStatus('Completing course...', [
+                { text: 'Setting completion status', status: 'active' },
+                { text: 'Setting score to 100%', status: 'pending' }
+            ]);
+
+            try {
+                await Extension.sendToContent('SET_COMPLETION', {
+                    status: 'completed',
+                    score: 100,
+                    apiIndex: 0
+                });
+            } catch (error) {
+                UI.setOperationResult(false, 'Completion failed: ' + error.message, true, true);
+            }
+        },
+
+        skipDetection() {
+            State.setWorkflow(WORKFLOW.IDLE);
+        },
+
         clear() {
             State.reset();
-            
+
             if ($.qaList) $.qaList.innerHTML = '<div class="empty-state">No Q&A found. Try scanning the page.</div>';
             if ($.apisList) $.apisList.innerHTML = '<div class="empty-state">No SCORM/xAPI detected.</div>';
             if ($.correctList) $.correctList.innerHTML = '<div class="empty-state">No correct answers found.</div>';
@@ -917,14 +1073,59 @@
             UI.updateBadge($.correctCount, 0);
             UI.updateBadge($.logsCount, 0);
 
-            UI.showSearchContainer(false);
             Search.clear();
-            $.scormControls?.classList.remove('active');
-            $.validationWarnings?.classList.remove('active');
 
+            State.setWorkflow(WORKFLOW.IDLE);
             Extension.sendToServiceWorker('CLEAR_TAB_STATE');
-            
+
             Toast.info('Results cleared');
+        },
+
+        async saveAsQuickAction() {
+            if (!State.lastOperation) {
+                Toast.error('No operation to save');
+                return;
+            }
+
+            const config = {
+                domain: ActivationGate.getDomain(State.tabUrl),
+                type: State.lastOperation.type,
+                framework: State.lastOperation.framework,
+                savedAt: new Date().toISOString()
+            };
+
+            try {
+                const data = await chrome.storage.local.get('quickActions');
+                const quickActions = data.quickActions || [];
+
+                // Don't duplicate
+                const exists = quickActions.some(a =>
+                    a.domain === config.domain && a.type === config.type
+                );
+
+                if (!exists) {
+                    quickActions.push(config);
+                    await chrome.storage.local.set({ quickActions });
+                    State.quickActions = quickActions.filter(a => a.domain === config.domain);
+                    Renderer.renderQuickActions(State.quickActions);
+                    Toast.success('Quick action saved');
+                } else {
+                    Toast.info('Quick action already exists');
+                }
+            } catch (error) {
+                Toast.error('Failed to save: ' + error.message);
+            }
+        },
+
+        async runQuickAction(index) {
+            const action = State.quickActions[index];
+            if (!action) return;
+
+            if (action.type === 'extract') {
+                await this.extractQA();
+            } else if (action.type === 'complete') {
+                await this.completeCourse();
+            }
         },
 
         async testAPI() {
@@ -975,12 +1176,10 @@
                 return;
             }
 
-            // Format all correct answers as numbered list
             const text = items.map((item, idx) => `${idx + 1}. ${item.text}`).join('\n');
             const success = await copyToClipboard(text);
 
             if (success) {
-                // Visual feedback on button
                 if ($.btnCopyAllCorrect) {
                     $.btnCopyAllCorrect.classList.add('copied');
                     const originalHTML = $.btnCopyAllCorrect.innerHTML;
@@ -1029,17 +1228,11 @@
             Toast.success(`Exported as ${format.toUpperCase()}`);
         },
 
-        /**
-         * Convert results to structured JSON for test automation pipelines
-         * Schema designed for easy parsing and validation
-         */
         toAutomationJSON(results) {
             const questions = results.qa?.questions || [];
             const items = results.qa?.items || [];
 
-            // Group answers under their questions
             const structuredQuestions = questions.map((q, idx) => {
-                // Find answers that belong to this question
                 const qIndex = items.findIndex(item => item.type === 'question' && item.text === q.text);
                 const answers = [];
                 for (let i = qIndex + 1; i < items.length; i++) {
@@ -1066,38 +1259,24 @@
                     correctAnswerIds: correctAnswers.map((_, aIdx) =>
                         `q${idx + 1}_a${answers.indexOf(correctAnswers[aIdx]) + 1}`
                     ),
-                    correctAnswerTexts: correctAnswers.map(a => a.text),
-                    metadata: {
-                        source: q.source || 'unknown',
-                        confidence: q.confidence || 0
-                    }
+                    correctAnswerTexts: correctAnswers.map(a => a.text)
                 };
             });
 
-            // Build structured export
             const exportData = {
                 version: '1.0',
                 exportedAt: new Date().toISOString(),
                 schema: 'lms-qa-validator-v1',
                 source: {
                     url: results.url || State.tabUrl,
-                    tool: results.tool || 'unknown',
-                    extractedAt: results.timestamp || new Date().toISOString()
+                    tool: results.tool || 'unknown'
                 },
                 summary: {
                     totalQuestions: questions.length,
                     totalAnswers: items.filter(i => i.type === 'answer').length,
-                    correctAnswers: items.filter(i => i.correct).length,
-                    questionTypes: this.countQuestionTypes(questions)
+                    correctAnswers: items.filter(i => i.correct).length
                 },
                 questions: structuredQuestions,
-                apis: (results.apis || []).map(api => ({
-                    type: api.type,
-                    standard: api.standard || 'unknown',
-                    functional: !!api.functional,
-                    location: api.location
-                })),
-                // Flat list for simple iteration
                 answerKey: items
                     .filter(i => i.correct)
                     .map((item, idx) => ({
@@ -1107,18 +1286,6 @@
             };
 
             return JSON.stringify(exportData, null, 2);
-        },
-
-        /**
-         * Count question types for summary
-         */
-        countQuestionTypes(questions) {
-            const counts = {};
-            questions.forEach(q => {
-                const type = q.questionType || 'choice';
-                counts[type] = (counts[type] || 0) + 1;
-            });
-            return counts;
         },
 
         toCSV(results) {
@@ -1148,8 +1315,6 @@
                 '='.repeat(60),
                 'URL: ' + (results.url || State.tabUrl),
                 'Tool: ' + (results.tool || 'Unknown'),
-                'Questions: ' + (results.qa?.questions?.length || 0),
-                'Correct Answers: ' + (results.qa?.correct || 0),
                 '',
                 '-'.repeat(60),
                 'CORRECT ANSWERS',
@@ -1160,32 +1325,6 @@
             correct.forEach((item, idx) => {
                 lines.push((idx + 1) + '. ' + item.text);
             });
-
-            // Add question breakdown
-            const questions = results.qa?.questions || [];
-            if (questions.length > 0) {
-                lines.push('');
-                lines.push('-'.repeat(60));
-                lines.push('FULL Q&A BREAKDOWN');
-                lines.push('-'.repeat(60));
-
-                questions.forEach((q, idx) => {
-                    lines.push('');
-                    lines.push('Q' + (idx + 1) + ': ' + q.text);
-
-                    // Find answers for this question
-                    const items = results.qa?.items || [];
-                    const qIndex = items.findIndex(item => item.type === 'question' && item.text === q.text);
-                    for (let i = qIndex + 1; i < items.length; i++) {
-                        if (items[i].type === 'answer') {
-                            const marker = items[i].correct ? '[CORRECT] ' : '          ';
-                            lines.push('  ' + marker + items[i].text);
-                        } else if (items[i].type === 'question') {
-                            break;
-                        }
-                    }
-                });
-            }
 
             return lines.join('\n');
         },
@@ -1221,28 +1360,9 @@
             const response = await Extension.sendToServiceWorker('ACTIVATE_SELECTOR_TAB', { targetTabId: tabId });
             if (response?.success) {
                 Toast.success('Selector activated - switch to that window');
-                // Close popup so user can interact with the other window
                 window.close();
             } else {
                 Toast.error('Failed to activate selector: ' + (response?.error || 'Unknown'));
-            }
-        },
-
-        async applyRuleOnTab(tabId) {
-            if (!State.currentRule) {
-                Toast.error('No rule to apply');
-                return;
-            }
-
-            const response = await Extension.sendToServiceWorker('APPLY_RULE_TAB', {
-                targetTabId: tabId,
-                rule: State.currentRule
-            });
-
-            if (response?.success) {
-                Toast.success('Rule applied to related window');
-            } else {
-                Toast.error('Failed to apply rule: ' + (response?.error || 'Unknown'));
             }
         },
 
@@ -1272,7 +1392,6 @@
 
                 if (response?.success) {
                     Toast.info('Selector panel opened - close this popup to interact with the page');
-                    // Close popup after short delay so user sees the toast
                     setTimeout(() => window.close(), 800);
                 } else {
                     throw new Error(response?.reason || 'Failed to inject selector');
@@ -1353,8 +1472,6 @@
             }
 
             Toast.info('Applying saved rule...');
-            // This will be implemented to use the saved selectors
-            // to extract Q&A from the page
             await Extension.sendToContent('APPLY_SELECTOR_RULE', { rule: State.currentRule });
         },
 
@@ -1391,7 +1508,7 @@
                 }
 
                 const exportData = {
-                    version: '3.2.0',
+                    version: '4.0.0',
                     exportedAt: new Date().toISOString(),
                     rules: rules
                 };
@@ -1419,23 +1536,18 @@
                 const text = await file.text();
                 const data = JSON.parse(text);
 
-                // Validate structure
                 if (!data.rules || typeof data.rules !== 'object') {
                     Toast.error('Invalid rules file format');
                     return;
                 }
 
-                // Validate each rule
                 const validRules = {};
                 let validCount = 0;
-                let skippedCount = 0;
 
                 for (const [pattern, rule] of Object.entries(data.rules)) {
                     if (this.isValidRule(rule)) {
                         validRules[pattern] = rule;
                         validCount++;
-                    } else {
-                        skippedCount++;
                     }
                 }
 
@@ -1444,21 +1556,21 @@
                     return;
                 }
 
-                // Import the rules
                 await Extension.sendToServiceWorker('IMPORT_SELECTOR_RULES', { rules: validRules });
                 await this.loadRulesCount();
                 await this.checkForSavedRule();
 
-                if (skippedCount > 0) {
-                    Toast.success(`Imported ${validCount} rule(s), skipped ${skippedCount} invalid`);
-                } else {
-                    Toast.success(`Imported ${validCount} rule(s)`);
+                Toast.success(`Imported ${validCount} rule(s)`);
+
+                // After importing rules, re-check activation
+                const gateResult = await ActivationGate.check();
+                if (gateResult.active) {
+                    ActivationGate.activate();
                 }
             } catch (error) {
                 Toast.error('Failed to import: ' + error.message);
             }
 
-            // Clear the file input for future imports
             event.target.value = '';
         },
 
@@ -1481,6 +1593,16 @@
 
         [MSG.PROGRESS]: (payload) => {
             UI.setProgress(payload.step, payload.total, payload.message);
+
+            // Update operation details if in operating mode
+            if (State.workflow === WORKFLOW.OPERATING && $.operationDetails) {
+                const steps = [
+                    { text: 'Discovering APIs', status: payload.step >= 1 ? 'done' : 'pending' },
+                    { text: 'Detecting framework', status: payload.step >= 2 ? 'done' : payload.step === 1 ? 'active' : 'pending' },
+                    { text: 'Extracting Q&A', status: payload.step >= 3 ? 'done' : payload.step === 2 ? 'active' : 'pending' }
+                ];
+                UI.setOperationStatus(payload.message, steps);
+            }
         },
 
         [MSG.SCAN_COMPLETE]: (payload) => {
@@ -1491,12 +1613,9 @@
             if (payload.results) {
                 Renderer.renderAll(payload.results);
 
-                // Build informative completion message
                 const tool = payload.results.tool;
                 const questions = payload.results.qa?.questions?.length || 0;
-                const answers = payload.results.qa?.items?.filter(i => i.type === 'answer')?.length || 0;
                 const correct = payload.results.qa?.items?.filter(i => i.correct)?.length || 0;
-                const apis = payload.results.apis?.length || 0;
 
                 let message = 'Scan complete';
                 if (tool && tool !== 'generic') {
@@ -1511,17 +1630,20 @@
                 }
 
                 if (questions > 0) {
-                    message += ': ' + questions + ' question(s), ' + correct + ' correct';
-                } else if (answers > 0) {
-                    message += ': ' + answers + ' answer(s) found';
-                } else if (apis > 0) {
-                    message += ': ' + apis + ' API(s) detected';
+                    message += `: ${questions} question(s), ${correct} correct`;
+                }
+
+                // Update operation result
+                if (State.workflow === WORKFLOW.OPERATING) {
+                    UI.setOperationResult(true, message, false, false);
                 }
 
                 Toast.success(message);
             } else {
                 Toast.success('Scan complete');
             }
+
+            State.setWorkflow(WORKFLOW.RESULTS);
         },
 
         [MSG.SCAN_ERROR]: (payload) => {
@@ -1529,17 +1651,19 @@
             UI.hideProgress();
             $.btnScan.disabled = false;
 
-            Toast.error(payload.error || 'Scan failed');
+            const errorMsg = payload.error || 'Scan failed';
+
+            if (State.workflow === WORKFLOW.OPERATING) {
+                UI.setOperationResult(false, errorMsg, true, true);
+            }
+
+            Toast.error(errorMsg);
+            State.setWorkflow(WORKFLOW.IDLE);
         },
 
         [MSG.TEST_RESULT]: (payload) => {
             if (payload.results?.success) {
-                const customFn = payload.results?.customFunction;
-                if (customFn) {
-                    Toast.success(`Found: ${customFn}() is available`);
-                } else {
-                    Toast.success('API test passed');
-                }
+                Toast.success('API test passed');
             } else {
                 Toast.error('API test failed: ' + (payload.results?.error || ''));
             }
@@ -1547,25 +1671,30 @@
 
         [MSG.SET_COMPLETION_RESULT]: (payload) => {
             if (payload.results?.success) {
-                const customFn = payload.results?.customFunction;
-                if (customFn) {
-                    Toast.success(`${customFn}() executed successfully`);
-                } else {
-                    Toast.success('Completion set successfully');
+                Toast.success('Completion set successfully');
+
+                if (State.workflow === WORKFLOW.OPERATING) {
+                    UI.setOperationResult(true, 'Course marked as complete with 100% score', false, false);
+                    State.setWorkflow(WORKFLOW.RESULTS);
                 }
             } else {
-                Toast.error('Failed: ' + (payload.results?.error || 'Unknown error'));
+                const errorMsg = 'Failed: ' + (payload.results?.error || 'Unknown error');
+                Toast.error(errorMsg);
+
+                if (State.workflow === WORKFLOW.OPERATING) {
+                    UI.setOperationResult(false, errorMsg, true, true);
+                }
             }
         },
 
         [MSG.SELECTOR_ACTIVATED]: () => {
             State.selectorActive = true;
-            // Popup may already be closed, but update state just in case
+            Toast.info('Selector active - pick elements on the page');
         },
 
         [MSG.SELECTOR_DEACTIVATED]: () => {
-            State.selectorActive = false;
             Actions.resetSelectorButton();
+            State.selectorActive = false;
         },
 
         [MSG.SELECTOR_INJECTION_FAILED]: (payload) => {
@@ -1588,16 +1717,6 @@
             }
         },
 
-        [MSG.SELECTOR_ACTIVATED]: () => {
-            State.selectorActive = true;
-            Toast.info('Selector active - pick elements on the page');
-        },
-
-        [MSG.SELECTOR_DEACTIVATED]: () => {
-            Actions.resetSelectorButton();
-            State.selectorActive = false;
-        },
-
         [MSG.SELECTOR_RULE_CREATED]: (payload) => {
             Actions.resetSelectorButton();
             State.selectorActive = false;
@@ -1614,21 +1733,46 @@
 
             if (payload.results) {
                 Renderer.renderAll(payload.results);
-                const qCount = payload.results.qa?.questions || 0;
+                const qCount = payload.results.qa?.questions?.length || 0;
                 const aCount = payload.results.qa?.items?.filter(i => i.type === 'answer').length || 0;
-                const apiCount = payload.results.apis?.length || 0;
 
-                let msg = `Extracted ${qCount} questions, ${aCount} answers`;
-                if (apiCount > 0) {
-                    msg += `, ${apiCount} API(s)`;
+                const msg = `Extracted ${qCount} questions, ${aCount} answers`;
+
+                if (State.workflow === WORKFLOW.OPERATING) {
+                    UI.setOperationResult(true, msg, false, false);
                 }
+
                 Toast.success(msg);
             }
+
+            State.setWorkflow(WORKFLOW.RESULTS);
         },
 
         [MSG.EXTRACTION_ERROR]: (payload) => {
             UI.setStatus(STATUS.ERROR);
-            Toast.error(payload.error || 'Extraction failed');
+            const errorMsg = payload.error || 'Extraction failed';
+
+            if (State.workflow === WORKFLOW.OPERATING) {
+                UI.setOperationResult(false, errorMsg, true, true);
+            }
+
+            Toast.error(errorMsg);
+        },
+
+        [MSG.DETECTION_COMPLETE]: (payload) => {
+            if (payload.framework) {
+                State.detectedFramework = payload.framework;
+                State.detectedAPIs = payload.apis || [];
+
+                UI.setFrameworkInfo(payload.framework, {
+                    apiCount: payload.apis?.length || 0,
+                    potentialQA: payload.potentialQA
+                });
+
+                State.setWorkflow(WORKFLOW.DETECTED);
+            } else {
+                State.setWorkflow(WORKFLOW.IDLE);
+            }
         }
     };
 
@@ -1644,6 +1788,50 @@
     // ═══════════════════════════════════════════════════════════════════════════
 
     function bindEvents() {
+        // Activation gate actions
+        $.btnForceActivate?.addEventListener('click', () => {
+            ActivationGate.activate();
+            // Optionally start detection
+            Actions.detect();
+        });
+
+        $.btnImportRulesGate?.addEventListener('click', () => Actions.importRules());
+
+        // Framework panel actions
+        $.btnExtractQa?.addEventListener('click', () => Actions.extractQA());
+        $.btnCompleteCourse?.addEventListener('click', () => Actions.completeCourse());
+        $.btnSkipDetection?.addEventListener('click', () => Actions.skipDetection());
+
+        // Operation feedback actions
+        $.btnRetryOperation?.addEventListener('click', () => {
+            if (State.lastOperation?.type === 'extract') {
+                Actions.extractQA();
+            } else if (State.lastOperation?.type === 'complete') {
+                Actions.completeCourse();
+            } else {
+                Actions.scan();
+            }
+        });
+
+        $.btnTryAlternative?.addEventListener('click', () => {
+            // If extraction failed, try completion; vice versa
+            if (State.lastOperation?.type === 'extract') {
+                Actions.completeCourse();
+            } else {
+                Actions.extractQA();
+            }
+        });
+
+        $.btnSaveConfig?.addEventListener('click', () => Actions.saveAsQuickAction());
+
+        // Quick actions list
+        $.quickActionsList?.addEventListener('click', (e) => {
+            const runBtn = e.target.closest('.btn-run-quick');
+            if (runBtn) {
+                Actions.runQuickAction(parseInt(runBtn.dataset.index, 10));
+            }
+        });
+
         // Main actions
         $.btnScan?.addEventListener('click', () => Actions.scan());
         $.btnClear?.addEventListener('click', () => Actions.clear());
@@ -1655,7 +1843,7 @@
         // Quick copy
         $.btnCopyAllCorrect?.addEventListener('click', () => Actions.copyAllCorrect());
 
-        // Quick actions
+        // Element picker
         $.btnAutoSelect?.addEventListener('click', () => Actions.autoSelect());
         $.btnElementSelector?.addEventListener('click', () => Actions.activateSelector());
 
@@ -1663,7 +1851,7 @@
         $.btnApplyRule?.addEventListener('click', () => Actions.applyRule());
         $.btnDeleteRule?.addEventListener('click', () => Actions.deleteRule());
 
-        // Rules management (export/import)
+        // Rules management
         $.btnExportRules?.addEventListener('click', () => Actions.exportRules());
         $.btnImportRules?.addEventListener('click', () => Actions.importRules());
         $.rulesFileInput?.addEventListener('change', (e) => Actions.handleRulesFileSelect(e));
@@ -1754,10 +1942,35 @@
             UI.setTabUrl(State.tabUrl);
         }
 
-        // Load existing state
-        const existingState = await Extension.sendToServiceWorker('GET_TAB_STATE');
-        if (existingState?.results) {
-            Renderer.renderAll(existingState.results);
+        // Check activation gate
+        const gateResult = await ActivationGate.check();
+
+        if (gateResult.active) {
+            State.isActivated = true;
+
+            // Load existing state first
+            const existingState = await Extension.sendToServiceWorker('GET_TAB_STATE');
+            if (existingState?.results) {
+                Renderer.renderAll(existingState.results);
+                State.setWorkflow(WORKFLOW.RESULTS);
+            } else if (gateResult.hasRules) {
+                // Has rules, go to idle mode for manual actions
+                State.setWorkflow(WORKFLOW.IDLE);
+            } else {
+                // Start detection for LMS pages
+                State.setWorkflow(WORKFLOW.IDLE);
+                // Optionally auto-detect: Actions.detect();
+            }
+
+            // Load quick actions
+            if (gateResult.quickActions) {
+                State.quickActions = gateResult.quickActions;
+                Renderer.renderQuickActions(State.quickActions);
+            }
+        } else {
+            // Show activation gate
+            UI.setGateReason(gateResult.reason);
+            State.setWorkflow(WORKFLOW.GATE);
         }
 
         // Load related tabs
@@ -1769,9 +1982,7 @@
         // Load rules count
         await Actions.loadRulesCount();
 
-        UI.setStatus(STATUS.READY);
-
-        console.log('[LMS QA Popup] Initialized');
+        console.log('[LMS QA Popup v4.0] Initialized');
     }
 
     // Start when DOM ready
