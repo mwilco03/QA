@@ -27,7 +27,8 @@
         ACTIVATE_SELECTOR: 'ACTIVATE_SELECTOR',
         DEACTIVATE_SELECTOR: 'DEACTIVATE_SELECTOR',
         APPLY_SELECTOR_RULE: 'APPLY_SELECTOR_RULE',
-        DETECT_APIS: 'DETECT_APIS'
+        DETECT_APIS: 'DETECT_APIS',
+        GET_FRAME_INFO: 'GET_FRAME_INFO'
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -36,6 +37,8 @@
 
     let isInjected = false;
     let isSelectorInjected = false;
+    const isTopFrame = window === window.top;
+    const frameId = Math.random().toString(36).substr(2, 9); // Unique ID for this frame
 
     // ═══════════════════════════════════════════════════════════════════════════
     // LOGGING
@@ -74,13 +77,29 @@
         (document.head || document.documentElement).appendChild(script);
     }
 
-    function injectSelector(autoActivate = true) {
+    function injectSelector(autoActivate = true, forceInject = false) {
+        // Only inject in top frame unless explicitly forced (for iframe targeting)
+        if (!isTopFrame && !forceInject) {
+            log.debug('Skipping selector injection - not top frame');
+            return false;
+        }
+
         if (isSelectorInjected) {
             // Already injected, just send activation command
             if (autoActivate) {
                 sendToPage('CMD_ACTIVATE_SELECTOR');
             }
-            return;
+            return true;
+        }
+
+        // Check if selector panel already exists (handles page reload cases)
+        if (document.getElementById('lms-qa-selector-panel')) {
+            log.debug('Selector panel already exists in DOM');
+            isSelectorInjected = true;
+            if (autoActivate) {
+                sendToPage('CMD_ACTIVATE_SELECTOR');
+            }
+            return true;
         }
 
         const script = document.createElement('script');
@@ -89,7 +108,7 @@
         script.onload = function() {
             this.remove();
             isSelectorInjected = true;
-            log.info('Element selector injected');
+            log.info('Element selector injected in ' + (isTopFrame ? 'top frame' : 'iframe'));
 
             // Send activation command after script loads (runs in page context via message)
             if (autoActivate) {
@@ -103,6 +122,7 @@
         };
 
         (document.head || document.documentElement).appendChild(script);
+        return true;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -207,9 +227,11 @@
             return { success: true, injected: isInjected };
         },
 
-        [CMD.ACTIVATE_SELECTOR]: () => {
-            injectSelector(true);
-            return { success: true };
+        [CMD.ACTIVATE_SELECTOR]: (message) => {
+            // forceFrame allows injection in iframes when explicitly targeted
+            const forceInject = message?.forceFrame === true;
+            const injected = injectSelector(true, forceInject);
+            return { success: injected, isTopFrame, frameId };
         },
 
         [CMD.DEACTIVATE_SELECTOR]: () => {
@@ -218,6 +240,13 @@
         },
 
         [CMD.APPLY_SELECTOR_RULE]: (message) => {
+            // Only apply in top frame unless explicitly forced
+            const forceInject = message?.forceFrame === true;
+            if (!isTopFrame && !forceInject) {
+                log.debug('Skipping rule apply - not top frame');
+                return { success: false, reason: 'not_top_frame' };
+            }
+
             const hybrid = message.hybrid !== false; // Default to hybrid mode
 
             // For hybrid mode, ensure validator is injected for API detection
@@ -227,7 +256,7 @@
 
             // Inject selector if not already, then send apply command
             if (!isSelectorInjected) {
-                injectSelector(false);
+                injectSelector(false, forceInject);
                 // Wait longer if both scripts need to load
                 const delay = (hybrid && !isInjected) ? 200 : 100;
                 setTimeout(() => {
@@ -236,7 +265,7 @@
             } else {
                 sendToPage('CMD_APPLY_RULE', { rule: message.rule, hybrid });
             }
-            return { success: true };
+            return { success: true, isTopFrame, frameId };
         },
 
         [CMD.DETECT_APIS]: () => {
@@ -247,6 +276,46 @@
                 sendToPage('CMD_DETECT_APIS');
             }
             return { success: true };
+        },
+
+        [CMD.GET_FRAME_INFO]: () => {
+            // Gather info about this frame and any child iframes
+            const iframes = document.querySelectorAll('iframe');
+            const frameInfo = {
+                frameId,
+                isTopFrame,
+                url: window.location.href,
+                title: document.title,
+                hasContent: document.body?.innerText?.length > 100,
+                childFrames: []
+            };
+
+            iframes.forEach((iframe, index) => {
+                try {
+                    const iframeSrc = iframe.src || iframe.getAttribute('src') || '';
+                    const iframeName = iframe.name || iframe.id || `iframe-${index}`;
+                    let canAccess = false;
+
+                    // Try to access iframe document (will fail for cross-origin)
+                    try {
+                        canAccess = !!iframe.contentDocument;
+                    } catch (e) {
+                        canAccess = false;
+                    }
+
+                    frameInfo.childFrames.push({
+                        index,
+                        name: iframeName,
+                        src: iframeSrc,
+                        canAccess,
+                        visible: iframe.offsetParent !== null
+                    });
+                } catch (e) {
+                    // Ignore errors
+                }
+            });
+
+            return frameInfo;
         }
     };
 
@@ -266,7 +335,7 @@
     // INITIALIZATION
     // ═══════════════════════════════════════════════════════════════════════════
 
-    log.info('Content script loaded');
+    log.info(`Content script loaded (${isTopFrame ? 'TOP FRAME' : 'iframe'}, id: ${frameId})`);
 
     // Report window relationship for better child/popup window detection
     try {
