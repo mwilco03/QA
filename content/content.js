@@ -28,7 +28,8 @@
         DEACTIVATE_SELECTOR: 'DEACTIVATE_SELECTOR',
         APPLY_SELECTOR_RULE: 'APPLY_SELECTOR_RULE',
         DETECT_APIS: 'DETECT_APIS',
-        GET_FRAME_INFO: 'GET_FRAME_INFO'
+        GET_FRAME_INFO: 'GET_FRAME_INFO',
+        SEED_EXTRACT: 'SEED_EXTRACT'
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -165,6 +166,17 @@
 
         log.debug(`From page: ${messageType}`);
 
+        // Handle TRIGGER_SEED_EXTRACT from selector - call seed extraction with the text
+        if (messageType === 'TRIGGER_SEED_EXTRACT' && payload?.seedText) {
+            log.info('Triggering seed extraction from selector');
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_SEED_EXTRACT', { seedText: payload.seedText }), 100);
+            } else {
+                sendToPage('CMD_SEED_EXTRACT', { seedText: payload.seedText });
+            }
+        }
+
         sendToExtension(messageType, payload);
     });
 
@@ -274,6 +286,17 @@
                 setTimeout(() => sendToPage('CMD_DETECT_APIS'), 100);
             } else {
                 sendToPage('CMD_DETECT_APIS');
+            }
+            return { success: true };
+        },
+
+        [CMD.SEED_EXTRACT]: (message) => {
+            // Seed extraction - find all Q&A based on selected text
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_SEED_EXTRACT', { seedText: message.seedText }), 100);
+            } else {
+                sendToPage('CMD_SEED_EXTRACT', { seedText: message.seedText });
             }
             return { success: true };
         },
