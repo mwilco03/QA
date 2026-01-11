@@ -32,7 +32,9 @@
         STATE_UPDATE: 'STATE_UPDATE',
         SELECTOR_ACTIVATED: 'SELECTOR_ACTIVATED',
         SELECTOR_DEACTIVATED: 'SELECTOR_DEACTIVATED',
-        SELECTOR_RULE_CREATED: 'SELECTOR_RULE_CREATED'
+        SELECTOR_RULE_CREATED: 'SELECTOR_RULE_CREATED',
+        EXTRACTION_COMPLETE: 'EXTRACTION_COMPLETE',
+        EXTRACTION_ERROR: 'EXTRACTION_ERROR'
     });
 
     const STATUS = Object.freeze({
@@ -829,6 +831,22 @@
                 Actions.showSavedRule(payload.rule, payload.rule.urlPattern);
                 Toast.success(`Rule saved! Q:${payload.rule.questionCount} A:${payload.rule.answerCount}`);
             }
+        },
+
+        [MSG.EXTRACTION_COMPLETE]: (payload) => {
+            UI.setStatus(STATUS.SUCCESS);
+
+            if (payload.results) {
+                Renderer.renderAll(payload.results);
+                const qCount = payload.results.qa?.questions || 0;
+                const aCount = payload.results.qa?.items?.filter(i => i.type === 'answer').length || 0;
+                Toast.success(`Extracted ${qCount} questions, ${aCount} answers`);
+            }
+        },
+
+        [MSG.EXTRACTION_ERROR]: (payload) => {
+            UI.setStatus(STATUS.ERROR);
+            Toast.error(payload.error || 'Extraction failed');
         }
     };
 

@@ -25,7 +25,8 @@
         INJECT: 'INJECT',
         PING: 'PING',
         ACTIVATE_SELECTOR: 'ACTIVATE_SELECTOR',
-        DEACTIVATE_SELECTOR: 'DEACTIVATE_SELECTOR'
+        DEACTIVATE_SELECTOR: 'DEACTIVATE_SELECTOR',
+        APPLY_SELECTOR_RULE: 'APPLY_SELECTOR_RULE'
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -215,6 +216,19 @@
 
         [CMD.DEACTIVATE_SELECTOR]: () => {
             sendToPage('CMD_DEACTIVATE_SELECTOR');
+            return { success: true };
+        },
+
+        [CMD.APPLY_SELECTOR_RULE]: (message) => {
+            // Inject selector if not already, then send apply command
+            if (!isSelectorInjected) {
+                injectSelector(false);
+                setTimeout(() => {
+                    sendToPage('CMD_APPLY_RULE', { rule: message.rule });
+                }, 100);
+            } else {
+                sendToPage('CMD_APPLY_RULE', { rule: message.rule });
+            }
             return { success: true };
         }
     };

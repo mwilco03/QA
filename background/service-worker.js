@@ -24,7 +24,9 @@ const MSG = Object.freeze({
     AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT',
     SELECTOR_ACTIVATED: 'SELECTOR_ACTIVATED',
     SELECTOR_DEACTIVATED: 'SELECTOR_DEACTIVATED',
-    SELECTOR_RULE_CREATED: 'SELECTOR_RULE_CREATED'
+    SELECTOR_RULE_CREATED: 'SELECTOR_RULE_CREATED',
+    EXTRACTION_COMPLETE: 'EXTRACTION_COMPLETE',
+    EXTRACTION_ERROR: 'EXTRACTION_ERROR'
 });
 
 const LMS_URL_PATTERNS = [
@@ -230,6 +232,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             log.info(`Selector rule created`, message.payload?.rule);
             storeSelectionRule(message.payload?.rule);
             notifyPopup(MSG.SELECTOR_RULE_CREATED, { tabId, rule: message.payload?.rule });
+            break;
+
+        case MSG.EXTRACTION_COMPLETE:
+            log.info(`Extraction complete on tab ${tabId}`);
+            TabState.update(tabId, {
+                results: message.payload,
+                lastScan: Date.now()
+            });
+            notifyPopup(MSG.EXTRACTION_COMPLETE, { tabId, results: message.payload });
+            break;
+
+        case MSG.EXTRACTION_ERROR:
+            log.error(`Extraction error on tab ${tabId}:`, message.payload?.error);
+            notifyPopup(MSG.EXTRACTION_ERROR, { tabId, error: message.payload?.error });
             break;
 
         case MSG.STATE:
