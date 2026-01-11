@@ -109,6 +109,15 @@
         </div>
 
         <div id="correct-panel" class="tab-panel">
+            <div class="correct-actions">
+                <button id="btn-copy-all-correct" class="btn btn-outline btn-sm" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <rect x="9" y="9" width="13" height="13" rx="2"/>
+                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                    Copy All
+                </button>
+            </div>
             <div id="correct-list" class="results-list">
                 <div class="empty-state">No correct answers found.</div>
             </div>
@@ -243,7 +252,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-        <span class="version">v3.8</span>
+        <span class="version">v3.9</span>
         <span class="shortcuts">Ctrl+R: Scan | Ctrl+F: Search | Ctrl+E: Export</span>
     </footer>
 

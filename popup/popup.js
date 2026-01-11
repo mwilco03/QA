@@ -78,6 +78,231 @@
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // HTML TEMPLATES
+    // Centralized template functions for consistent rendering
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const Templates = {
+        emptyState(message) {
+            const div = document.createElement('div');
+            div.className = 'empty-state';
+            div.textContent = message;
+            return div;
+        },
+
+        qaGroup(question, answers, qNum, questionType) {
+            const group = document.createElement('div');
+            group.className = 'qa-group';
+            if (questionType) group.dataset.type = questionType;
+
+            // Question
+            const qDiv = document.createElement('div');
+            qDiv.className = question ? 'qa-question' : 'qa-question orphan';
+            qDiv.dataset.text = question?.text || '';
+
+            const numSpan = document.createElement('span');
+            numSpan.className = 'qa-num';
+            numSpan.textContent = `Q${qNum}`;
+            qDiv.appendChild(numSpan);
+
+            const textSpan = document.createElement('span');
+            textSpan.className = 'qa-text';
+            textSpan.textContent = question?.text || '(Question not captured)';
+            qDiv.appendChild(textSpan);
+
+            if (questionType) {
+                const typeSpan = document.createElement('span');
+                typeSpan.className = 'qa-type';
+                typeSpan.textContent = questionType;
+                qDiv.appendChild(typeSpan);
+            }
+
+            group.appendChild(qDiv);
+
+            // Answers container
+            const answersDiv = document.createElement('div');
+            answersDiv.className = 'qa-answers';
+            answers.forEach(ans => answersDiv.appendChild(ans));
+            group.appendChild(answersDiv);
+
+            return group;
+        },
+
+        qaAnswer(text, isCorrect, markerContent = null) {
+            const div = document.createElement('div');
+            div.className = 'qa-answer' + (isCorrect ? ' correct' : '');
+            div.dataset.text = text;
+
+            const marker = document.createElement('span');
+            marker.className = 'qa-marker';
+            marker.textContent = markerContent || (isCorrect ? '✓' : '○');
+            div.appendChild(marker);
+
+            const textSpan = document.createElement('span');
+            textSpan.className = 'qa-text';
+            textSpan.textContent = text;
+            div.appendChild(textSpan);
+
+            return div;
+        },
+
+        sequenceAnswer(text, position) {
+            const div = document.createElement('div');
+            div.className = 'qa-answer sequence';
+            div.dataset.text = text;
+
+            const marker = document.createElement('span');
+            marker.className = 'qa-marker seq';
+            marker.textContent = String(position);
+            div.appendChild(marker);
+
+            const textSpan = document.createElement('span');
+            textSpan.className = 'qa-text';
+            textSpan.textContent = text;
+            div.appendChild(textSpan);
+
+            return div;
+        },
+
+        matchAnswer(sourceText, targetText) {
+            const div = document.createElement('div');
+            div.className = 'qa-answer match';
+            div.dataset.text = sourceText;
+
+            const source = document.createElement('span');
+            source.className = 'match-source';
+            source.textContent = sourceText;
+            div.appendChild(source);
+
+            const arrow = document.createElement('span');
+            arrow.className = 'match-arrow';
+            arrow.textContent = '→';
+            div.appendChild(arrow);
+
+            const target = document.createElement('span');
+            target.className = 'match-target';
+            target.textContent = targetText || '?';
+            div.appendChild(target);
+
+            return div;
+        },
+
+        correctItem(text, index) {
+            const div = document.createElement('div');
+            div.className = 'correct-item';
+            div.dataset.text = text;
+
+            const num = document.createElement('span');
+            num.className = 'correct-num';
+            num.textContent = `${index + 1}.`;
+            div.appendChild(num);
+
+            const textSpan = document.createElement('span');
+            textSpan.className = 'correct-text';
+            textSpan.textContent = text;
+            div.appendChild(textSpan);
+
+            return div;
+        },
+
+        apiItem(api, index) {
+            const div = document.createElement('div');
+            div.className = 'api-item';
+            div.dataset.index = index;
+
+            const header = document.createElement('div');
+            header.className = 'api-header';
+
+            const typeSpan = document.createElement('span');
+            typeSpan.className = 'api-type';
+            typeSpan.textContent = api.type;
+
+            const statusSpan = document.createElement('span');
+            statusSpan.className = 'api-status' + (api.functional ? ' functional' : '');
+            statusSpan.textContent = api.functional ? 'Active' : 'Found';
+
+            header.appendChild(typeSpan);
+            header.appendChild(statusSpan);
+            div.appendChild(header);
+
+            const location = document.createElement('div');
+            location.className = 'api-location';
+            location.textContent = api.location;
+            div.appendChild(location);
+
+            if (api.methods && api.methods.length > 0) {
+                const methods = document.createElement('div');
+                methods.className = 'api-methods';
+                methods.textContent = api.methods.join(', ');
+                div.appendChild(methods);
+            }
+
+            return div;
+        },
+
+        logItem(log) {
+            const div = document.createElement('div');
+            div.className = 'log-item ' + (log.level?.toLowerCase() || 'info');
+
+            const time = document.createElement('span');
+            time.className = 'log-time';
+            time.textContent = log.timestamp?.split('T')[1]?.split('.')[0] || '';
+            div.appendChild(time);
+
+            const level = document.createElement('span');
+            level.className = 'log-level';
+            level.textContent = log.level || 'INFO';
+            div.appendChild(level);
+
+            const msg = document.createElement('span');
+            msg.className = 'log-msg';
+            msg.textContent = log.message;
+            div.appendChild(msg);
+
+            return div;
+        },
+
+        scanSummary(questionCount, answerCount, correctCount, typeBreakdown) {
+            const div = document.createElement('div');
+            div.id = 'scan-summary';
+            div.className = 'scan-summary';
+
+            const row = document.createElement('div');
+            row.className = 'summary-row';
+
+            const qStat = this.summaryStatElement(questionCount, 'Questions');
+            const aStat = this.summaryStatElement(answerCount, 'Answers');
+            const cStat = this.summaryStatElement(correctCount, 'Correct', 'correct');
+
+            row.appendChild(qStat);
+            row.appendChild(aStat);
+            row.appendChild(cStat);
+            div.appendChild(row);
+
+            if (typeBreakdown) {
+                const types = document.createElement('div');
+                types.className = 'summary-types';
+                types.textContent = typeBreakdown;
+                div.appendChild(types);
+            }
+
+            return div;
+        },
+
+        summaryStatElement(value, label, extraClass = '') {
+            const span = document.createElement('span');
+            span.className = 'summary-stat' + (extraClass ? ' ' + extraClass : '');
+
+            const strong = document.createElement('strong');
+            strong.textContent = value;
+            span.appendChild(strong);
+            span.appendChild(document.createTextNode(' ' + label));
+
+            return span;
+        }
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // STATE MANAGEMENT
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -125,7 +350,7 @@
             'results-tabs', 'qa-list', 'apis-list', 'correct-list', 'logs-list',
             'qa-count', 'apis-count', 'correct-count', 'logs-count',
             'scorm-controls', 'completion-status', 'completion-score',
-            'btn-test-api', 'btn-set-completion',
+            'btn-test-api', 'btn-set-completion', 'btn-copy-all-correct',
             'quick-actions', 'btn-auto-select', 'btn-element-selector',
             'saved-rules', 'rule-info', 'btn-apply-rule', 'btn-delete-rule',
             'rules-management', 'rules-count', 'btn-export-rules', 'btn-import-rules', 'rules-file-input',
@@ -303,10 +528,11 @@
                     rise: 'Rise 360',
                     captivate: 'Captivate',
                     lectora: 'Lectora',
-                    ispring: 'iSpring'
+                    ispring: 'iSpring',
+                    camtasia: 'Camtasia'
                 };
                 badge.textContent = toolNames[tool] || tool;
-                badge.className = `tool-badge ${tool}`;
+                badge.className = 'tool-badge ' + tool;
                 badge.style.display = 'inline-block';
             } else {
                 badge.style.display = 'none';
@@ -523,17 +749,21 @@
         renderCorrect(items) {
             if (!$.correctList) return;
 
+            // Update copy all button state
+            if ($.btnCopyAllCorrect) {
+                $.btnCopyAllCorrect.disabled = items.length === 0;
+            }
+
             if (items.length === 0) {
-                $.correctList.innerHTML = '<div class="empty-state">No correct answers found.</div>';
+                $.correctList.innerHTML = '';
+                $.correctList.appendChild(Templates.emptyState('No correct answers found.'));
                 return;
             }
 
-            $.correctList.innerHTML = items.map((item, idx) => `
-                <div class="correct-item" data-text="${escapeHtml(item.text)}">
-                    <span class="correct-num">${idx + 1}.</span>
-                    <span class="correct-text">${escapeHtml(item.text)}</span>
-                </div>
-            `).join('');
+            $.correctList.innerHTML = '';
+            items.forEach((item, idx) => {
+                $.correctList.appendChild(Templates.correctItem(item.text, idx));
+            });
         },
 
         renderLogs(logs) {
@@ -737,6 +967,39 @@
             `;
         },
 
+        async copyAllCorrect() {
+            const items = State.results?.qa?.items?.filter(i => i.correct) || [];
+            if (items.length === 0) {
+                Toast.info('No correct answers to copy');
+                return;
+            }
+
+            // Format all correct answers as numbered list
+            const text = items.map((item, idx) => `${idx + 1}. ${item.text}`).join('\n');
+            const success = await copyToClipboard(text);
+
+            if (success) {
+                // Visual feedback on button
+                if ($.btnCopyAllCorrect) {
+                    $.btnCopyAllCorrect.classList.add('copied');
+                    const originalHTML = $.btnCopyAllCorrect.innerHTML;
+                    $.btnCopyAllCorrect.innerHTML = `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <path d="M20 6L9 17l-5-5"/>
+                        </svg>
+                        Copied!
+                    `;
+                    setTimeout(() => {
+                        $.btnCopyAllCorrect.classList.remove('copied');
+                        $.btnCopyAllCorrect.innerHTML = originalHTML;
+                    }, 1500);
+                }
+                Toast.success(`Copied ${items.length} correct answer(s)`);
+            } else {
+                Toast.error('Failed to copy to clipboard');
+            }
+        },
+
         export(format) {
             const results = State.results;
             if (!results) {
@@ -757,7 +1020,7 @@
                     filename = `lms-qa-${timestamp}.txt`;
                     break;
                 default:
-                    data = JSON.stringify(results, null, 2);
+                    data = this.toAutomationJSON(results);
                     filename = `lms-qa-${timestamp}.json`;
             }
 
@@ -765,12 +1028,110 @@
             Toast.success(`Exported as ${format.toUpperCase()}`);
         },
 
+        /**
+         * Convert results to structured JSON for test automation pipelines
+         * Schema designed for easy parsing and validation
+         */
+        toAutomationJSON(results) {
+            const questions = results.qa?.questions || [];
+            const items = results.qa?.items || [];
+
+            // Group answers under their questions
+            const structuredQuestions = questions.map((q, idx) => {
+                // Find answers that belong to this question
+                const qIndex = items.findIndex(item => item.type === 'question' && item.text === q.text);
+                const answers = [];
+                for (let i = qIndex + 1; i < items.length; i++) {
+                    if (items[i].type === 'answer') {
+                        answers.push(items[i]);
+                    } else if (items[i].type === 'question') {
+                        break;
+                    }
+                }
+
+                const correctAnswers = answers.filter(a => a.correct);
+
+                return {
+                    id: `q${idx + 1}`,
+                    questionNumber: idx + 1,
+                    questionType: q.questionType || 'choice',
+                    text: q.text || '',
+                    answers: answers.map((a, aIdx) => ({
+                        id: `q${idx + 1}_a${aIdx + 1}`,
+                        text: a.text || '',
+                        isCorrect: !!a.correct,
+                        position: aIdx + 1
+                    })),
+                    correctAnswerIds: correctAnswers.map((_, aIdx) =>
+                        `q${idx + 1}_a${answers.indexOf(correctAnswers[aIdx]) + 1}`
+                    ),
+                    correctAnswerTexts: correctAnswers.map(a => a.text),
+                    metadata: {
+                        source: q.source || 'unknown',
+                        confidence: q.confidence || 0
+                    }
+                };
+            });
+
+            // Build structured export
+            const exportData = {
+                version: '1.0',
+                exportedAt: new Date().toISOString(),
+                schema: 'lms-qa-validator-v1',
+                source: {
+                    url: results.url || State.tabUrl,
+                    tool: results.tool || 'unknown',
+                    extractedAt: results.timestamp || new Date().toISOString()
+                },
+                summary: {
+                    totalQuestions: questions.length,
+                    totalAnswers: items.filter(i => i.type === 'answer').length,
+                    correctAnswers: items.filter(i => i.correct).length,
+                    questionTypes: this.countQuestionTypes(questions)
+                },
+                questions: structuredQuestions,
+                apis: (results.apis || []).map(api => ({
+                    type: api.type,
+                    standard: api.standard || 'unknown',
+                    functional: !!api.functional,
+                    location: api.location
+                })),
+                // Flat list for simple iteration
+                answerKey: items
+                    .filter(i => i.correct)
+                    .map((item, idx) => ({
+                        position: idx + 1,
+                        text: item.text
+                    }))
+            };
+
+            return JSON.stringify(exportData, null, 2);
+        },
+
+        /**
+         * Count question types for summary
+         */
+        countQuestionTypes(questions) {
+            const counts = {};
+            questions.forEach(q => {
+                const type = q.questionType || 'choice';
+                counts[type] = (counts[type] || 0) + 1;
+            });
+            return counts;
+        },
+
         toCSV(results) {
-            const rows = [['Type', 'Text', 'Correct', 'Source', 'Confidence']];
+            const rows = [['QuestionNum', 'Type', 'Text', 'Correct', 'Source', 'Confidence']];
+            let currentQuestion = 0;
+
             (results.qa?.items || []).forEach(item => {
+                if (item.type === 'question') {
+                    currentQuestion++;
+                }
                 rows.push([
+                    item.type === 'question' ? currentQuestion : '',
                     item.type,
-                    `"${(item.text || '').replace(/"/g, '""')}"`,
+                    '"' + (item.text || '').replace(/"/g, '""') + '"',
                     item.correct ? 'Yes' : '',
                     item.source || '',
                     item.confidence || ''
@@ -781,12 +1142,13 @@
 
         toTXT(results) {
             const lines = [
-                '=' .repeat(60),
+                '='.repeat(60),
                 'LMS QA VALIDATOR - ANSWER KEY',
                 '='.repeat(60),
-                `URL: ${results.url || State.tabUrl}`,
-                `Questions: ${results.qa?.questions || 0}`,
-                `Correct: ${results.qa?.correct || 0}`,
+                'URL: ' + (results.url || State.tabUrl),
+                'Tool: ' + (results.tool || 'Unknown'),
+                'Questions: ' + (results.qa?.questions?.length || 0),
+                'Correct Answers: ' + (results.qa?.correct || 0),
                 '',
                 '-'.repeat(60),
                 'CORRECT ANSWERS',
@@ -795,8 +1157,34 @@
 
             const correct = (results.qa?.items || []).filter(i => i.correct);
             correct.forEach((item, idx) => {
-                lines.push(`${idx + 1}. ${item.text}`);
+                lines.push((idx + 1) + '. ' + item.text);
             });
+
+            // Add question breakdown
+            const questions = results.qa?.questions || [];
+            if (questions.length > 0) {
+                lines.push('');
+                lines.push('-'.repeat(60));
+                lines.push('FULL Q&A BREAKDOWN');
+                lines.push('-'.repeat(60));
+
+                questions.forEach((q, idx) => {
+                    lines.push('');
+                    lines.push('Q' + (idx + 1) + ': ' + q.text);
+
+                    // Find answers for this question
+                    const items = results.qa?.items || [];
+                    const qIndex = items.findIndex(item => item.type === 'question' && item.text === q.text);
+                    for (let i = qIndex + 1; i < items.length; i++) {
+                        if (items[i].type === 'answer') {
+                            const marker = items[i].correct ? '[CORRECT] ' : '          ';
+                            lines.push('  ' + marker + items[i].text);
+                        } else if (items[i].type === 'question') {
+                            break;
+                        }
+                    }
+                });
+            }
 
             return lines.join('\n');
         },
@@ -1212,6 +1600,9 @@
         // SCORM controls
         $.btnTestApi?.addEventListener('click', () => Actions.testAPI());
         $.btnSetCompletion?.addEventListener('click', () => Actions.setCompletion());
+
+        // Quick copy
+        $.btnCopyAllCorrect?.addEventListener('click', () => Actions.copyAllCorrect());
 
         // Quick actions
         $.btnAutoSelect?.addEventListener('click', () => Actions.autoSelect());
