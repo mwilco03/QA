@@ -86,18 +86,15 @@
         const script = document.createElement('script');
         script.src = chrome.runtime.getURL('lib/element-selector.js');
 
-        if (autoActivate) {
-            // Set flag for auto-activation
-            const flagScript = document.createElement('script');
-            flagScript.textContent = 'window.__LMS_SELECTOR_AUTO_ACTIVATE__ = true;';
-            (document.head || document.documentElement).appendChild(flagScript);
-            flagScript.remove();
-        }
-
         script.onload = function() {
             this.remove();
             isSelectorInjected = true;
             log.info('Element selector injected');
+
+            // Send activation command after script loads (runs in page context via message)
+            if (autoActivate) {
+                sendToPage('CMD_ACTIVATE_SELECTOR');
+            }
         };
 
         script.onerror = function() {
