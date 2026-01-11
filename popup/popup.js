@@ -921,7 +921,12 @@
 
         [MSG.TEST_RESULT]: (payload) => {
             if (payload.results?.success) {
-                Toast.success('API test passed');
+                const customFn = payload.results?.customFunction;
+                if (customFn) {
+                    Toast.success(`Found: ${customFn}() is available`);
+                } else {
+                    Toast.success('API test passed');
+                }
             } else {
                 Toast.error('API test failed: ' + (payload.results?.error || ''));
             }
@@ -929,9 +934,14 @@
 
         [MSG.SET_COMPLETION_RESULT]: (payload) => {
             if (payload.results?.success) {
-                Toast.success('Completion set successfully');
+                const customFn = payload.results?.customFunction;
+                if (customFn) {
+                    Toast.success(`${customFn}() executed successfully`);
+                } else {
+                    Toast.success('Completion set successfully');
+                }
             } else {
-                Toast.error('Failed: ' + (payload.results?.error || ''));
+                Toast.error('Failed: ' + (payload.results?.error || 'Unknown error'));
             }
         },
 
