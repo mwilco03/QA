@@ -81,6 +81,8 @@
 
 body {
     width: 400px;
+    min-width: 320px;
+    max-width: 500px;
     min-height: 500px;
     max-height: 600px;
     overflow-y: auto;
@@ -89,6 +91,51 @@ body {
     color: var(--color-text);
     background: var(--color-bg);
     line-height: 1.5;
+}
+
+/* Responsive adjustments for narrower popups */
+@media (max-width: 360px) {
+    body {
+        width: 100%;
+    }
+
+    .header-title h1 {
+        font-size: var(--font-size-md);
+    }
+
+    .actions-primary {
+        flex-direction: column;
+    }
+
+    .actions-primary .btn {
+        flex: none;
+        width: 100%;
+    }
+
+    .export-buttons {
+        flex-wrap: wrap;
+    }
+
+    .export-buttons .btn {
+        flex: 1 1 calc(50% - var(--space-xs));
+        min-width: 0;
+    }
+
+    .control-row {
+        flex-wrap: wrap;
+    }
+
+    .control-row .select {
+        flex: 1 1 100%;
+    }
+
+    .control-row .input {
+        flex: 1;
+    }
+
+    .footer .shortcuts {
+        display: none;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -952,4 +999,238 @@ body {
     align-items: center;
     justify-content: center;
     gap: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   12. TOOL BADGE & SCAN SUMMARY
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tool-badge {
+    display: none;
+    padding: 2px 8px;
+    margin-left: var(--space-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+}
+
+.tool-badge.storyline {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.tool-badge.rise {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.tool-badge.captivate {
+    background: #fce7f3;
+    color: #be185d;
+}
+
+.tool-badge.lectora {
+    background: #e0e7ff;
+    color: #4338ca;
+}
+
+.tool-badge.ispring {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.scan-summary {
+    display: none;
+    padding: var(--space-sm) var(--space-md);
+    margin-bottom: var(--space-sm);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.summary-row {
+    display: flex;
+    gap: var(--space-lg);
+    flex-wrap: wrap;
+}
+
+.summary-stat {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.summary-stat strong {
+    font-size: var(--font-size-md);
+    color: var(--color-text);
+}
+
+.summary-stat.correct strong {
+    color: var(--color-success);
+}
+
+.summary-types {
+    margin-top: var(--space-xs);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   13. GROUPED Q&A DISPLAY
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.qa-group {
+    margin-bottom: var(--space-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.qa-group:last-child {
+    margin-bottom: 0;
+}
+
+.qa-question {
+    display: flex;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-primary-light);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.qa-question:hover {
+    background: #bfdbfe;
+}
+
+.qa-question.orphan {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.qa-type {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    background: rgba(0,0,0,0.1);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary);
+}
+
+.qa-answers {
+    background: var(--color-bg);
+}
+
+.qa-answer {
+    display: flex;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    padding-left: calc(var(--space-md) + 24px);
+    border-top: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.qa-answer:hover {
+    background: var(--color-bg-tertiary);
+}
+
+.qa-answer.correct {
+    background: rgba(34, 197, 94, 0.1);
+}
+
+.qa-answer.correct .qa-marker {
+    color: var(--color-success);
+    font-weight: bold;
+}
+
+.qa-answer.sequence .qa-marker.seq {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-primary);
+    color: white;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: bold;
+}
+
+.qa-answer.match {
+    display: flex;
+    align-items: center;
+}
+
+.match-source {
+    flex: 1;
+    color: var(--color-text);
+}
+
+.match-arrow {
+    flex-shrink: 0;
+    padding: 0 var(--space-sm);
+    color: var(--color-primary);
+    font-weight: bold;
+}
+
+.match-target {
+    flex: 1;
+    color: var(--color-success);
+    font-weight: 500;
+}
+
+.seq-pos {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    font-size: var(--font-size-xs);
+    background: var(--color-primary);
+    color: white;
+    border-radius: var(--radius-sm);
+}
+
+/* Copied state for grouped items */
+.qa-question.copied,
+.qa-answer.copied {
+    background: var(--color-success) !important;
+    color: white;
+}
+
+.qa-question.copied .qa-type,
+.qa-answer.copied .qa-marker {
+    color: white;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   14. CORRECT PANEL ACTIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.correct-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--color-bg-secondary);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.correct-actions .btn-sm {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.correct-actions .btn-sm:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.correct-actions .btn-sm.copied {
+    background: var(--color-success);
+    color: white;
+    border-color: var(--color-success);
 }
