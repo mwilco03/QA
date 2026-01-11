@@ -192,6 +192,38 @@
         </div>
     </section>
 
+    <!-- Rules Management -->
+    <section id="rules-management" class="rules-management">
+        <div class="section-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/>
+                <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>Selector Rules</span>
+            <span id="rules-count" class="badge rules-badge">0</span>
+        </div>
+        <div class="rules-buttons">
+            <button id="btn-export-rules" class="btn btn-outline btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Export
+            </button>
+            <button id="btn-import-rules" class="btn btn-outline btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Import
+            </button>
+        </div>
+        <input type="file" id="rules-file-input" accept=".json" style="display: none;">
+    </section>
+
     <!-- Export Actions -->
     <section class="export-actions">
         <div class="section-header">
@@ -211,7 +243,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-        <span class="version">v3.1</span>
+        <span class="version">v3.2</span>
         <span class="shortcuts">Ctrl+R: Scan | Ctrl+F: Search | Ctrl+E: Export</span>
     </footer>
 
