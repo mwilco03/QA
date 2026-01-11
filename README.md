@@ -175,6 +175,14 @@ Open `tests/test-runner.html` in a browser to run unit tests.
 
 ## Version History
 
+### v3.1.0
+- **Critical Bug Fix**: Added code detection to prevent extracting JavaScript source code as Q&A content
+- Added `isCodeLike()` and `isNaturalLanguage()` content validators
+- More restrictive pattern matching for resource analysis
+- Skip SCORM runtime library files automatically
+- Improved confidence scoring (pattern matches now LOW confidence)
+- Better handling of minified/bundled JavaScript files
+
 ### v3.0.0
 - Complete architectural refactor
 - Modular code organization
