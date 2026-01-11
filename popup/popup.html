@@ -159,6 +159,14 @@
             </svg>
             <span>Quick Actions</span>
         </div>
+        <button id="btn-element-selector" class="btn btn-primary full-width" style="margin-bottom: 8px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3z"/>
+                <path d="M15 15h6v6h-6z"/>
+                <circle cx="12" cy="12" r="2"/>
+            </svg>
+            Pick Q&A Elements
+        </button>
         <button id="btn-auto-select" class="btn btn-success full-width">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
@@ -166,6 +174,22 @@
             </svg>
             Auto-Select Answers
         </button>
+    </section>
+
+    <!-- Saved Rules -->
+    <section id="saved-rules" class="saved-rules" style="display: none;">
+        <div class="section-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+            </svg>
+            <span>Saved Rule</span>
+        </div>
+        <div id="rule-info" class="rule-info"></div>
+        <div class="rule-actions">
+            <button id="btn-apply-rule" class="btn btn-outline btn-sm">Apply Rule</button>
+            <button id="btn-delete-rule" class="btn btn-outline btn-sm btn-danger">Delete</button>
+        </div>
     </section>
 
     <!-- Export Actions -->

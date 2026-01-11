@@ -29,7 +29,10 @@
         SET_COMPLETION_RESULT: 'SET_COMPLETION_RESULT',
         CMI_DATA: 'CMI_DATA',
         AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT',
-        STATE_UPDATE: 'STATE_UPDATE'
+        STATE_UPDATE: 'STATE_UPDATE',
+        SELECTOR_ACTIVATED: 'SELECTOR_ACTIVATED',
+        SELECTOR_DEACTIVATED: 'SELECTOR_DEACTIVATED',
+        SELECTOR_RULE_CREATED: 'SELECTOR_RULE_CREATED'
     });
 
     const STATUS = Object.freeze({
@@ -80,6 +83,8 @@
         tabId: null,
         tabUrl: '',
         results: null,
+        currentRule: null,
+        selectorActive: false,
         settings: {
             autoScan: false
         },
@@ -119,7 +124,8 @@
             'qa-count', 'apis-count', 'correct-count', 'logs-count',
             'scorm-controls', 'completion-status', 'completion-score',
             'btn-test-api', 'btn-set-completion',
-            'quick-actions', 'btn-auto-select',
+            'quick-actions', 'btn-auto-select', 'btn-element-selector',
+            'saved-rules', 'rule-info', 'btn-apply-rule', 'btn-delete-rule',
             'btn-export-json', 'btn-export-csv', 'btn-export-txt',
             'toast'
         ];
@@ -630,6 +636,113 @@
                     chrome.windows.update(tab.windowId, { focused: true });
                 }
             });
+        },
+
+        async activateSelector() {
+            try {
+                $.btnElementSelector.disabled = true;
+                $.btnElementSelector.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3z"/>
+                        <path d="M15 15h6v6h-6z"/>
+                        <circle cx="12" cy="12" r="2"/>
+                    </svg>
+                    Selecting...
+                `;
+                State.selectorActive = true;
+
+                await Extension.sendToContent('ACTIVATE_SELECTOR');
+                Toast.info('Click elements on the page to select Q&A');
+
+                // Close popup so user can interact with page
+                // window.close();
+            } catch (error) {
+                Toast.error('Failed to activate selector: ' + error.message);
+                $.btnElementSelector.disabled = false;
+                this.resetSelectorButton();
+            }
+        },
+
+        resetSelectorButton() {
+            $.btnElementSelector.disabled = false;
+            $.btnElementSelector.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3z"/>
+                    <path d="M15 15h6v6h-6z"/>
+                    <circle cx="12" cy="12" r="2"/>
+                </svg>
+                Pick Q&A Elements
+            `;
+            State.selectorActive = false;
+        },
+
+        async checkForSavedRule() {
+            try {
+                const urlPattern = this.getURLPattern(State.tabUrl);
+                const response = await Extension.sendToServiceWorker('GET_SELECTOR_RULES', { urlPattern });
+
+                if (response?.rules) {
+                    State.currentRule = response.rules;
+                    this.showSavedRule(response.rules, urlPattern);
+                } else {
+                    this.hideSavedRule();
+                }
+            } catch (error) {
+                console.error('Failed to check for saved rule:', error);
+            }
+        },
+
+        getURLPattern(url) {
+            if (!url) return null;
+            try {
+                const parsed = new URL(url);
+                let path = parsed.pathname.replace(/\/\d+/g, '/*');
+                path = path.replace(/\/$/, '') || '/';
+                return `${parsed.hostname}${path}`;
+            } catch {
+                return null;
+            }
+        },
+
+        showSavedRule(rule, pattern) {
+            if (!$.savedRules || !$.ruleInfo) return;
+
+            $.savedRules.style.display = 'block';
+            $.ruleInfo.innerHTML = `
+                <div class="rule-pattern">${escapeHtml(pattern)}</div>
+                <div class="rule-stats">
+                    Questions: ${rule.questionCount || '?'} |
+                    Answers: ${rule.answerCount || '?'}
+                </div>
+            `;
+        },
+
+        hideSavedRule() {
+            if ($.savedRules) {
+                $.savedRules.style.display = 'none';
+            }
+            State.currentRule = null;
+        },
+
+        async applyRule() {
+            if (!State.currentRule) {
+                Toast.error('No rule to apply');
+                return;
+            }
+
+            Toast.info('Applying saved rule...');
+            // This will be implemented to use the saved selectors
+            // to extract Q&A from the page
+            await Extension.sendToContent('APPLY_SELECTOR_RULE', { rule: State.currentRule });
+        },
+
+        async deleteRule() {
+            const urlPattern = this.getURLPattern(State.tabUrl);
+            if (!urlPattern) return;
+
+            await Extension.sendToServiceWorker('DELETE_SELECTOR_RULE', { urlPattern });
+            this.hideSavedRule();
+            Toast.success('Rule deleted');
         }
     };
 
@@ -695,6 +808,27 @@
             if (payload.results) {
                 Renderer.renderAll(payload.results);
             }
+        },
+
+        [MSG.SELECTOR_ACTIVATED]: () => {
+            State.selectorActive = true;
+            Toast.info('Selector active - pick elements on the page');
+        },
+
+        [MSG.SELECTOR_DEACTIVATED]: () => {
+            Actions.resetSelectorButton();
+            State.selectorActive = false;
+        },
+
+        [MSG.SELECTOR_RULE_CREATED]: (payload) => {
+            Actions.resetSelectorButton();
+            State.selectorActive = false;
+
+            if (payload.rule) {
+                State.currentRule = payload.rule;
+                Actions.showSavedRule(payload.rule, payload.rule.urlPattern);
+                Toast.success(`Rule saved! Q:${payload.rule.questionCount} A:${payload.rule.answerCount}`);
+            }
         }
     };
 
@@ -720,6 +854,11 @@
 
         // Quick actions
         $.btnAutoSelect?.addEventListener('click', () => Actions.autoSelect());
+        $.btnElementSelector?.addEventListener('click', () => Actions.activateSelector());
+
+        // Saved rules
+        $.btnApplyRule?.addEventListener('click', () => Actions.applyRule());
+        $.btnDeleteRule?.addEventListener('click', () => Actions.deleteRule());
 
         // Export
         $.btnExportJson?.addEventListener('click', () => Actions.export('json'));
@@ -811,6 +950,9 @@
 
         // Load related tabs
         await Actions.loadRelatedTabs();
+
+        // Check for saved selector rules
+        await Actions.checkForSavedRule();
 
         UI.setStatus(STATUS.READY);
 
