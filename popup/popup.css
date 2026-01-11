@@ -743,6 +743,16 @@ body {
     gap: var(--space-xs);
 }
 
+.related-actions .btn-pick-tab {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+.related-actions .btn-pick-tab:hover {
+    background: var(--color-primary-hover);
+}
+
 /* SCORM Controls */
 .scorm-controls {
     display: none;

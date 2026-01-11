@@ -272,6 +272,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             });
             return true;
 
+        case 'ACTIVATE_SELECTOR_TAB':
+            activateSelectorOnTab(message.targetTabId).then(result => {
+                sendResponse(result);
+            });
+            return true;
+
+        case 'APPLY_RULE_TAB':
+            applyRuleOnTab(message.targetTabId, message.rule).then(result => {
+                sendResponse(result);
+            });
+            return true;
+
         case 'DOWNLOAD':
             handleDownload(message.format, message.data, message.filename);
             break;
@@ -409,6 +421,38 @@ async function scanSpecificTab(tabId) {
         return { success: true, tabId };
     } catch (error) {
         log.error(`Failed to scan tab ${tabId}: ${error.message}`);
+        return { success: false, error: error.message, tabId };
+    }
+}
+
+async function activateSelectorOnTab(tabId) {
+    try {
+        await injectContentScript(tabId);
+        await new Promise(r => setTimeout(r, 100));
+        await chrome.tabs.sendMessage(tabId, { type: 'ACTIVATE_SELECTOR' });
+
+        // Focus the tab so user can interact with selector
+        const tab = await chrome.tabs.get(tabId);
+        await chrome.tabs.update(tabId, { active: true });
+        if (tab.windowId) {
+            await chrome.windows.update(tab.windowId, { focused: true });
+        }
+
+        return { success: true, tabId };
+    } catch (error) {
+        log.error(`Failed to activate selector on tab ${tabId}: ${error.message}`);
+        return { success: false, error: error.message, tabId };
+    }
+}
+
+async function applyRuleOnTab(tabId, rule) {
+    try {
+        await injectContentScript(tabId);
+        await new Promise(r => setTimeout(r, 100));
+        await chrome.tabs.sendMessage(tabId, { type: 'APPLY_SELECTOR_RULE', rule, hybrid: true });
+        return { success: true, tabId };
+    } catch (error) {
+        log.error(`Failed to apply rule on tab ${tabId}: ${error.message}`);
         return { success: false, error: error.message, tabId };
     }
 }

@@ -378,10 +378,11 @@
             $.relatedList.innerHTML = tabs.map(tab => `
                 <div class="related-tab" data-tab-id="${tab.id}">
                     <span class="related-icon" title="${tab.relationship}">${icons[tab.relationship] || '?'}</span>
-                    <span class="related-title" title="${escapeHtml(tab.title)}">${truncate(tab.title, 35)}</span>
+                    <span class="related-title" title="${escapeHtml(tab.title)}">${truncate(tab.title, 30)}</span>
                     <div class="related-actions">
-                        <button class="btn-sm btn-scan-tab" data-tab-id="${tab.id}">Scan</button>
-                        <button class="btn-sm btn-focus-tab" data-tab-id="${tab.id}">Go</button>
+                        <button class="btn-sm btn-pick-tab" data-tab-id="${tab.id}" title="Pick Q&A Elements">Pick</button>
+                        <button class="btn-sm btn-scan-tab" data-tab-id="${tab.id}" title="Pattern Scan">Scan</button>
+                        <button class="btn-sm btn-focus-tab" data-tab-id="${tab.id}" title="Focus Window">Go</button>
                     </div>
                 </div>
             `).join('');
@@ -629,6 +630,35 @@
                 Toast.success('Scan started in related window');
             } else {
                 Toast.error('Failed to scan: ' + (response?.error || 'Unknown'));
+            }
+        },
+
+        async activateSelectorOnTab(tabId) {
+            const response = await Extension.sendToServiceWorker('ACTIVATE_SELECTOR_TAB', { targetTabId: tabId });
+            if (response?.success) {
+                Toast.success('Selector activated - switch to that window');
+                // Close popup so user can interact with the other window
+                window.close();
+            } else {
+                Toast.error('Failed to activate selector: ' + (response?.error || 'Unknown'));
+            }
+        },
+
+        async applyRuleOnTab(tabId) {
+            if (!State.currentRule) {
+                Toast.error('No rule to apply');
+                return;
+            }
+
+            const response = await Extension.sendToServiceWorker('APPLY_RULE_TAB', {
+                targetTabId: tabId,
+                rule: State.currentRule
+            });
+
+            if (response?.success) {
+                Toast.success('Rule applied to related window');
+            } else {
+                Toast.error('Failed to apply rule: ' + (response?.error || 'Unknown'));
             }
         },
 
@@ -1002,9 +1032,13 @@
         // Related tabs
         $.btnRefreshRelated?.addEventListener('click', () => Actions.loadRelatedTabs());
         $.relatedList?.addEventListener('click', (e) => {
+            const pickBtn = e.target.closest('.btn-pick-tab');
             const scanBtn = e.target.closest('.btn-scan-tab');
             const focusBtn = e.target.closest('.btn-focus-tab');
 
+            if (pickBtn) {
+                Actions.activateSelectorOnTab(parseInt(pickBtn.dataset.tabId, 10));
+            }
             if (scanBtn) {
                 Actions.scanRelatedTab(parseInt(scanBtn.dataset.tabId, 10));
             }
