@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LMS QA Validator - Tests</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { margin-bottom: 20px; color: #1e293b; }
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .test-section h2 {
+            font-size: 14px;
+            color: #64748b;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .test {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .test:last-child { border-bottom: none; }
+        .test-status {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: white;
+        }
+        .test-status.pass { background: #22c55e; }
+        .test-status.fail { background: #ef4444; }
+        .test-status.pending { background: #94a3b8; }
+        .test-name { flex: 1; color: #1e293b; }
+        .test-time { font-size: 12px; color: #94a3b8; }
+        .summary {
+            display: flex;
+            gap: 20px;
+            padding: 16px;
+            background: #1e293b;
+            color: white;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .summary-item { text-align: center; }
+        .summary-value { font-size: 24px; font-weight: bold; }
+        .summary-label { font-size: 12px; opacity: 0.7; }
+        .summary-item.passed .summary-value { color: #22c55e; }
+        .summary-item.failed .summary-value { color: #ef4444; }
+        #run-btn {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            background: #3b82f6;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        #run-btn:hover { background: #2563eb; }
+        #run-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        
+        /* Test Quiz Form */
+        .test-quiz {
+            display: none;
+            margin-top: 20px;
+            padding: 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        .test-quiz.visible { display: block; }
+        .test-quiz h3 { margin-bottom: 12px; }
+        .test-quiz .question { margin-bottom: 16px; }
+        .test-quiz label { display: block; margin: 4px 0; }
+    </style>
+</head>
+<body>
+    <h1>LMS QA Validator - Test Suite</h1>
+    
+    <button id="run-btn">Run All Tests</button>
+    
+    <div class="summary">
+        <div class="summary-item">
+            <div class="summary-value" id="total-count">0</div>
+            <div class="summary-label">Total</div>
+        </div>
+        <div class="summary-item passed">
+            <div class="summary-value" id="passed-count">0</div>
+            <div class="summary-label">Passed</div>
+        </div>
+        <div class="summary-item failed">
+            <div class="summary-value" id="failed-count">0</div>
+            <div class="summary-label">Failed</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-value" id="time-total">0ms</div>
+            <div class="summary-label">Time</div>
+        </div>
+    </div>
+    
+    <div id="test-results"></div>
+    
+    <!-- Test Quiz Form (hidden, used for DOM extraction tests) -->
+    <div class="test-quiz" id="test-quiz-form">
+        <h3>Test Quiz Form</h3>
+        
+        <div class="question">
+            <label>Q1: What is the capital of France?</label>
+            <select id="q1" name="question1">
+                <option value="">Select...</option>
+                <option value="false">London</option>
+                <option value="true">Paris</option>
+                <option value="false">Berlin</option>
+            </select>
+        </div>
+        
+        <div class="question">
+            <label>Q2: Which are prime numbers?</label>
+            <label><input type="checkbox" name="q2" value="true"> 2</label>
+            <label><input type="checkbox" name="q2" value="false"> 4</label>
+            <label><input type="checkbox" name="q2" value="true"> 7</label>
+        </div>
+        
+        <div class="question">
+            <label>Q3: The Earth is flat?</label>
+            <label><input type="radio" name="q3" value="false"> True</label>
+            <label><input type="radio" name="q3" value="true"> False</label>
+        </div>
+    </div>
+    
+    <script src="../lib/lms-qa-validator.js"></script>
+    <script src="validator.test.js"></script>
+</body>
+</html>
