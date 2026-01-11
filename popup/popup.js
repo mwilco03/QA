@@ -128,6 +128,7 @@
             'btn-test-api', 'btn-set-completion',
             'quick-actions', 'btn-auto-select', 'btn-element-selector',
             'saved-rules', 'rule-info', 'btn-apply-rule', 'btn-delete-rule',
+            'rules-management', 'rules-count', 'btn-export-rules', 'btn-import-rules', 'rules-file-input',
             'btn-export-json', 'btn-export-csv', 'btn-export-txt',
             'toast'
         ];
@@ -744,7 +745,108 @@
 
             await Extension.sendToServiceWorker('DELETE_SELECTOR_RULE', { urlPattern });
             this.hideSavedRule();
+            await this.loadRulesCount();
             Toast.success('Rule deleted');
+        },
+
+        async loadRulesCount() {
+            try {
+                const response = await Extension.sendToServiceWorker('GET_ALL_SELECTOR_RULES');
+                const rules = response?.rules || {};
+                const count = Object.keys(rules).length;
+
+                UI.updateBadge($.rulesCount, count);
+            } catch (error) {
+                console.error('Failed to load rules count:', error);
+            }
+        },
+
+        async exportRules() {
+            try {
+                const response = await Extension.sendToServiceWorker('GET_ALL_SELECTOR_RULES');
+                const rules = response?.rules || {};
+
+                if (Object.keys(rules).length === 0) {
+                    Toast.error('No rules to export');
+                    return;
+                }
+
+                const exportData = {
+                    version: '3.2.0',
+                    exportedAt: new Date().toISOString(),
+                    rules: rules
+                };
+
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const data = JSON.stringify(exportData, null, 2);
+                const filename = `lms-qa-rules-${timestamp}.json`;
+
+                this.download(data, filename, 'json');
+                Toast.success(`Exported ${Object.keys(rules).length} rule(s)`);
+            } catch (error) {
+                Toast.error('Failed to export rules: ' + error.message);
+            }
+        },
+
+        async importRules() {
+            $.rulesFileInput?.click();
+        },
+
+        async handleRulesFileSelect(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+
+                // Validate structure
+                if (!data.rules || typeof data.rules !== 'object') {
+                    Toast.error('Invalid rules file format');
+                    return;
+                }
+
+                // Validate each rule
+                const validRules = {};
+                let validCount = 0;
+                let skippedCount = 0;
+
+                for (const [pattern, rule] of Object.entries(data.rules)) {
+                    if (this.isValidRule(rule)) {
+                        validRules[pattern] = rule;
+                        validCount++;
+                    } else {
+                        skippedCount++;
+                    }
+                }
+
+                if (validCount === 0) {
+                    Toast.error('No valid rules found in file');
+                    return;
+                }
+
+                // Import the rules
+                await Extension.sendToServiceWorker('IMPORT_SELECTOR_RULES', { rules: validRules });
+                await this.loadRulesCount();
+                await this.checkForSavedRule();
+
+                if (skippedCount > 0) {
+                    Toast.success(`Imported ${validCount} rule(s), skipped ${skippedCount} invalid`);
+                } else {
+                    Toast.success(`Imported ${validCount} rule(s)`);
+                }
+            } catch (error) {
+                Toast.error('Failed to import: ' + error.message);
+            }
+
+            // Clear the file input for future imports
+            event.target.value = '';
+        },
+
+        isValidRule(rule) {
+            return rule &&
+                   typeof rule.questionSelector === 'string' &&
+                   typeof rule.answerSelector === 'string';
         }
     };
 
@@ -878,6 +980,11 @@
         $.btnApplyRule?.addEventListener('click', () => Actions.applyRule());
         $.btnDeleteRule?.addEventListener('click', () => Actions.deleteRule());
 
+        // Rules management (export/import)
+        $.btnExportRules?.addEventListener('click', () => Actions.exportRules());
+        $.btnImportRules?.addEventListener('click', () => Actions.importRules());
+        $.rulesFileInput?.addEventListener('change', (e) => Actions.handleRulesFileSelect(e));
+
         // Export
         $.btnExportJson?.addEventListener('click', () => Actions.export('json'));
         $.btnExportCsv?.addEventListener('click', () => Actions.export('csv'));
@@ -971,6 +1078,9 @@
 
         // Check for saved selector rules
         await Actions.checkForSavedRule();
+
+        // Load rules count
+        await Actions.loadRulesCount();
 
         UI.setStatus(STATUS.READY);
 

@@ -304,6 +304,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse({ success: true });
             });
             return true;
+
+        case 'IMPORT_SELECTOR_RULES':
+            importSelectionRules(message.rules).then((result) => {
+                sendResponse(result);
+            });
+            return true;
     }
 
     return false;
@@ -486,6 +492,30 @@ async function deleteSelectionRule(urlPattern) {
         log.info(`Deleted selector rule for ${urlPattern}`);
     } catch (error) {
         log.error('Failed to delete selector rule:', error.message);
+    }
+}
+
+async function importSelectionRules(newRules) {
+    if (!newRules || typeof newRules !== 'object') {
+        return { success: false, error: 'Invalid rules object' };
+    }
+
+    try {
+        const data = await chrome.storage.local.get('selectorRules');
+        const existingRules = data.selectorRules || {};
+
+        // Merge new rules with existing (new rules overwrite existing)
+        const mergedRules = { ...existingRules, ...newRules };
+
+        await chrome.storage.local.set({ selectorRules: mergedRules });
+
+        const importedCount = Object.keys(newRules).length;
+        log.info(`Imported ${importedCount} selector rules`);
+
+        return { success: true, imported: importedCount };
+    } catch (error) {
+        log.error('Failed to import selector rules:', error.message);
+        return { success: false, error: error.message };
     }
 }
 

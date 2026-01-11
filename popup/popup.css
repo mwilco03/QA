@@ -913,3 +913,33 @@ body {
     background: var(--color-error);
     color: white;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   11. RULES MANAGEMENT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.rules-management {
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.rules-management .section-header {
+    margin-bottom: var(--space-sm);
+}
+
+.rules-badge {
+    margin-left: auto;
+}
+
+.rules-buttons {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.rules-buttons .btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
