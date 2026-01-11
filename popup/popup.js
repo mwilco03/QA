@@ -34,7 +34,8 @@
         SELECTOR_DEACTIVATED: 'SELECTOR_DEACTIVATED',
         SELECTOR_RULE_CREATED: 'SELECTOR_RULE_CREATED',
         EXTRACTION_COMPLETE: 'EXTRACTION_COMPLETE',
-        EXTRACTION_ERROR: 'EXTRACTION_ERROR'
+        EXTRACTION_ERROR: 'EXTRACTION_ERROR',
+        SELECTOR_INJECTION_FAILED: 'SELECTOR_INJECTION_FAILED'
     });
 
     const STATUS = Object.freeze({
@@ -1263,19 +1264,24 @@
                         <path d="M15 15h6v6h-6z"/>
                         <circle cx="12" cy="12" r="2"/>
                     </svg>
-                    Selecting...
+                    Activating...
                 `;
                 State.selectorActive = true;
 
-                await Extension.sendToContent('ACTIVATE_SELECTOR');
-                Toast.info('Click elements on the page to select Q&A');
+                const response = await Extension.sendToContent('ACTIVATE_SELECTOR');
 
-                // Close popup so user can interact with page
-                // window.close();
+                if (response?.success) {
+                    Toast.info('Selector panel opened - close this popup to interact with the page');
+                    // Close popup after short delay so user sees the toast
+                    setTimeout(() => window.close(), 800);
+                } else {
+                    throw new Error(response?.reason || 'Failed to inject selector');
+                }
             } catch (error) {
                 Toast.error('Failed to activate selector: ' + error.message);
                 $.btnElementSelector.disabled = false;
                 this.resetSelectorButton();
+                State.selectorActive = false;
             }
         },
 
@@ -1484,9 +1490,38 @@
 
             if (payload.results) {
                 Renderer.renderAll(payload.results);
-            }
 
-            Toast.success('Scan complete');
+                // Build informative completion message
+                const tool = payload.results.tool;
+                const questions = payload.results.qa?.questions?.length || 0;
+                const answers = payload.results.qa?.items?.filter(i => i.type === 'answer')?.length || 0;
+                const correct = payload.results.qa?.items?.filter(i => i.correct)?.length || 0;
+                const apis = payload.results.apis?.length || 0;
+
+                let message = 'Scan complete';
+                if (tool && tool !== 'generic') {
+                    const toolNames = {
+                        storyline: 'Storyline',
+                        rise: 'Rise 360',
+                        captivate: 'Captivate',
+                        lectora: 'Lectora',
+                        ispring: 'iSpring'
+                    };
+                    message = 'Found ' + (toolNames[tool] || tool);
+                }
+
+                if (questions > 0) {
+                    message += ': ' + questions + ' question(s), ' + correct + ' correct';
+                } else if (answers > 0) {
+                    message += ': ' + answers + ' answer(s) found';
+                } else if (apis > 0) {
+                    message += ': ' + apis + ' API(s) detected';
+                }
+
+                Toast.success(message);
+            } else {
+                Toast.success('Scan complete');
+            }
         },
 
         [MSG.SCAN_ERROR]: (payload) => {
@@ -1521,6 +1556,22 @@
             } else {
                 Toast.error('Failed: ' + (payload.results?.error || 'Unknown error'));
             }
+        },
+
+        [MSG.SELECTOR_ACTIVATED]: () => {
+            State.selectorActive = true;
+            // Popup may already be closed, but update state just in case
+        },
+
+        [MSG.SELECTOR_DEACTIVATED]: () => {
+            State.selectorActive = false;
+            Actions.resetSelectorButton();
+        },
+
+        [MSG.SELECTOR_INJECTION_FAILED]: (payload) => {
+            Toast.error('Selector failed: ' + (payload.error || 'Unknown error'));
+            State.selectorActive = false;
+            Actions.resetSelectorButton();
         },
 
         [MSG.AUTO_SELECT_RESULT]: (payload) => {
