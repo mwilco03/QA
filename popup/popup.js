@@ -373,7 +373,7 @@
 
             $.relatedWindows.classList.add('active');
 
-            const icons = { parent: '↑', child: '↓', sibling: '↔' };
+            const icons = { parent: '↑', child: '↓', sibling: '↔', 'domain-session': '🌐' };
 
             $.relatedList.innerHTML = tabs.map(tab => `
                 <div class="related-tab" data-tab-id="${tab.id}">

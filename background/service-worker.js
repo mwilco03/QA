@@ -43,6 +43,7 @@ const MAX_SCAN_HISTORY = 50;
 
 const tabStates = new Map();
 const tabRelationships = new Map();
+const activeDomainSessions = new Map(); // domain -> { tabs: Set<tabId>, startTime, primaryTabId }
 
 const TabState = {
     get(tabId) {
@@ -87,6 +88,112 @@ const TabState = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DOMAIN SESSION TRACKING
+// Track all tabs on a domain when extension is activated
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DomainSession = {
+    getDomain(url) {
+        try {
+            return new URL(url).hostname;
+        } catch {
+            return null;
+        }
+    },
+
+    // Start tracking a domain when extension is activated
+    async startSession(tabId, url) {
+        const domain = this.getDomain(url);
+        if (!domain) return;
+
+        if (!activeDomainSessions.has(domain)) {
+            activeDomainSessions.set(domain, {
+                tabs: new Set(),
+                startTime: Date.now(),
+                primaryTabId: tabId
+            });
+            log.info(`Started domain session for ${domain}`);
+        }
+
+        const session = activeDomainSessions.get(domain);
+        session.tabs.add(tabId);
+
+        // Find and add all existing tabs on this domain
+        await this.discoverDomainTabs(domain);
+    },
+
+    // Discover all open tabs on a domain
+    async discoverDomainTabs(domain) {
+        try {
+            const allTabs = await chrome.tabs.query({});
+            const session = activeDomainSessions.get(domain);
+            if (!session) return;
+
+            for (const tab of allTabs) {
+                const tabDomain = this.getDomain(tab.url);
+                if (tabDomain === domain) {
+                    session.tabs.add(tab.id);
+                    TabState.update(tab.id, { sessionDomain: domain });
+                }
+            }
+
+            log.info(`Domain session ${domain}: ${session.tabs.size} tabs tracked`);
+        } catch (error) {
+            log.error('Failed to discover domain tabs:', error.message);
+        }
+    },
+
+    // Add a new tab to an existing domain session
+    addTab(tabId, url) {
+        const domain = this.getDomain(url);
+        if (!domain) return false;
+
+        const session = activeDomainSessions.get(domain);
+        if (session) {
+            session.tabs.add(tabId);
+            TabState.update(tabId, { sessionDomain: domain });
+            log.info(`Added tab ${tabId} to domain session ${domain}`);
+            return true;
+        }
+        return false;
+    },
+
+    // Remove a tab from its domain session
+    removeTab(tabId) {
+        for (const [domain, session] of activeDomainSessions) {
+            if (session.tabs.has(tabId)) {
+                session.tabs.delete(tabId);
+                if (session.tabs.size === 0) {
+                    activeDomainSessions.delete(domain);
+                    log.info(`Ended domain session for ${domain} (no tabs remaining)`);
+                }
+                return;
+            }
+        }
+    },
+
+    // Get all tabs in the same domain session
+    getSessionTabs(tabId) {
+        for (const [domain, session] of activeDomainSessions) {
+            if (session.tabs.has(tabId)) {
+                return { domain, tabs: Array.from(session.tabs), primaryTabId: session.primaryTabId };
+            }
+        }
+        return null;
+    },
+
+    // Get session by domain
+    getByDomain(domain) {
+        return activeDomainSessions.get(domain) || null;
+    },
+
+    // Check if a domain has an active session
+    hasSession(domain) {
+        return activeDomainSessions.has(domain);
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // LOGGING
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -123,9 +230,14 @@ async function injectContentScript(tabId) {
 // Track new tabs
 chrome.tabs.onCreated.addListener((tab) => {
     log.debug(`Tab created: ${tab.id}, opener: ${tab.openerTabId}`);
-    
+
     if (tab.openerTabId) {
         TabState.addRelationship(tab.id, tab.openerTabId);
+    }
+
+    // If we have a pending URL and there's an active domain session for it, add this tab
+    if (tab.pendingUrl) {
+        DomainSession.addTab(tab.id, tab.pendingUrl);
     }
 });
 
@@ -133,9 +245,19 @@ chrome.tabs.onCreated.addListener((tab) => {
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (changeInfo.status !== 'complete' || !tab.url) return;
 
-    const shouldInject = isLikelyLMSUrl(tab.url) || 
+    // Check if this tab belongs to an active domain session
+    const domain = DomainSession.getDomain(tab.url);
+    const hasActiveSession = domain && DomainSession.hasSession(domain);
+
+    // Add to domain session if one exists
+    if (hasActiveSession) {
+        DomainSession.addTab(tabId, tab.url);
+    }
+
+    const shouldInject = isLikelyLMSUrl(tab.url) ||
                         TabState.getParent(tabId) !== null ||
-                        TabState.getChildren(tabId).size > 0;
+                        TabState.getChildren(tabId).size > 0 ||
+                        hasActiveSession;
 
     if (shouldInject) {
         await injectContentScript(tabId);
@@ -149,6 +271,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 // Clean up on tab close
 chrome.tabs.onRemoved.addListener((tabId) => {
+    DomainSession.removeTab(tabId);
     TabState.delete(tabId);
 });
 
@@ -177,6 +300,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case MSG.SCAN_STARTED:
             log.info(`Scan started on tab ${tabId}`);
             TabState.update(tabId, { scanning: true, scanStarted: Date.now() });
+            // Start domain session for this tab's domain
+            if (url) DomainSession.startSession(tabId, url);
             notifyPopup(MSG.SCAN_STARTED, { tabId });
             break;
 
@@ -220,6 +345,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case MSG.SELECTOR_ACTIVATED:
             log.info(`Selector activated on tab ${tabId}`);
+            // Start domain session for this tab's domain
+            if (url) DomainSession.startSession(tabId, url);
             notifyPopup(MSG.SELECTOR_ACTIVATED, { tabId });
             break;
 
@@ -335,6 +462,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse(result);
             });
             return true;
+
+        case 'START_DOMAIN_SESSION':
+            if (message.url || url) {
+                DomainSession.startSession(tabId, message.url || url).then(() => {
+                    const domain = DomainSession.getDomain(message.url || url);
+                    const session = DomainSession.getByDomain(domain);
+                    sendResponse({
+                        success: true,
+                        domain,
+                        tabCount: session?.tabs.size || 0
+                    });
+                });
+            } else {
+                sendResponse({ success: false, error: 'No URL provided' });
+            }
+            return true;
+
+        case 'GET_DOMAIN_SESSION':
+            const sessionInfo = DomainSession.getSessionTabs(message.tabId || tabId);
+            sendResponse(sessionInfo);
+            return true;
+
+        case 'END_DOMAIN_SESSION':
+            const domainToEnd = message.domain || DomainSession.getDomain(url);
+            if (domainToEnd && activeDomainSessions.has(domainToEnd)) {
+                activeDomainSessions.delete(domainToEnd);
+                log.info(`Manually ended domain session for ${domainToEnd}`);
+                sendResponse({ success: true, domain: domainToEnd });
+            } else {
+                sendResponse({ success: false, error: 'No active session for domain' });
+            }
+            return true;
     }
 
     return false;
@@ -417,6 +576,28 @@ async function getRelatedTabs(tabId) {
                         url: siblingTab.url,
                         relationship: 'sibling',
                         hasResults: TabState.get(siblingTab.id)?.results !== null
+                    });
+                }
+            }
+        }
+    }
+
+    // Domain session tabs (tabs on same domain when session is active)
+    const session = DomainSession.getSessionTabs(tabId);
+    if (session) {
+        const addedIds = new Set(related.map(r => r.id));
+        addedIds.add(tabId); // Don't include self
+
+        for (const sessionTabId of session.tabs) {
+            if (!addedIds.has(sessionTabId)) {
+                const sessionTab = allTabs.find(t => t.id === sessionTabId);
+                if (sessionTab) {
+                    related.push({
+                        id: sessionTab.id,
+                        title: sessionTab.title,
+                        url: sessionTab.url,
+                        relationship: 'domain-session',
+                        hasResults: TabState.get(sessionTab.id)?.results !== null
                     });
                 }
             }
