@@ -233,7 +233,8 @@
             $.progressContainer?.classList.remove('active');
             $.searchContainer?.classList.remove('active', 'has-results');
             $.resultsTabs?.classList.remove('active');
-            $.tabPanels?.classList.remove('active');
+            // $.tabPanels is a NodeList - iterate over it
+            $.tabPanels?.forEach(panel => panel.classList.remove('active'));
             $.scormControls?.classList.remove('active');
             $.elementPicker?.classList.remove('active');
             $.exportActions?.classList.remove('active');
@@ -269,7 +270,10 @@
             if (hasResults) {
                 $.searchContainer?.classList.add('active', 'has-results');
                 $.resultsTabs?.classList.add('active');
-                $.tabPanels?.classList.add('active');
+                // Activate first tab panel by default (Q&A panel)
+                $.tabPanels?.forEach((panel, idx) => {
+                    panel.classList.toggle('active', idx === 0);
+                });
                 $.exportActions?.classList.add('active');
             }
 
@@ -433,14 +437,23 @@
     // ═══════════════════════════════════════════════════════════════════════════
 
     const Toast = {
+        _timeout: null,
+
         show(message, type = 'info', duration = 3000) {
             if (!$.toast) return;
+
+            // Clear any existing timeout to prevent premature hide
+            if (this._timeout) {
+                clearTimeout(this._timeout);
+                this._timeout = null;
+            }
 
             $.toast.textContent = message;
             $.toast.className = `toast ${type} show`;
 
-            setTimeout(() => {
+            this._timeout = setTimeout(() => {
                 $.toast.classList.remove('show');
+                this._timeout = null;
             }, duration);
         },
 
@@ -1003,7 +1016,7 @@
 
         async scan() {
             try {
-                $.btnScan.disabled = true;
+                if ($.btnScan) $.btnScan.disabled = true;
                 State.setWorkflow(WORKFLOW.OPERATING);
                 UI.setStatus(STATUS.SCANNING);
                 UI.setOperationStatus('Scanning page...', [
@@ -1017,7 +1030,7 @@
                 UI.setStatus(STATUS.ERROR);
                 UI.setOperationResult(false, 'Scan failed: ' + error.message, true, false);
                 Toast.error('Failed to start scan: ' + error.message);
-                $.btnScan.disabled = false;
+                if ($.btnScan) $.btnScan.disabled = false;
             }
         },
 
@@ -1150,6 +1163,8 @@
         },
 
         async autoSelect() {
+            if (!$.btnAutoSelect) return;
+
             $.btnAutoSelect.disabled = true;
             $.btnAutoSelect.textContent = 'Selecting...';
 
@@ -1376,6 +1391,8 @@
         },
 
         async activateSelector() {
+            if (!$.btnElementSelector) return;
+
             try {
                 $.btnElementSelector.disabled = true;
                 $.btnElementSelector.innerHTML = `
@@ -1405,6 +1422,8 @@
         },
 
         resetSelectorButton() {
+            if (!$.btnElementSelector) return;
+
             $.btnElementSelector.disabled = false;
             $.btnElementSelector.innerHTML = `
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
