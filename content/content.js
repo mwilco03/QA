@@ -23,7 +23,9 @@
         GET_STATE: 'GET_STATE',
         AUTO_SELECT: 'AUTO_SELECT',
         INJECT: 'INJECT',
-        PING: 'PING'
+        PING: 'PING',
+        ACTIVATE_SELECTOR: 'ACTIVATE_SELECTOR',
+        DEACTIVATE_SELECTOR: 'DEACTIVATE_SELECTOR'
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -31,6 +33,7 @@
     // ═══════════════════════════════════════════════════════════════════════════
 
     let isInjected = false;
+    let isSelectorInjected = false;
 
     // ═══════════════════════════════════════════════════════════════════════════
     // LOGGING
@@ -64,6 +67,40 @@
         script.onerror = function() {
             log.error('Failed to inject validator');
             sendToExtension('INJECTION_FAILED', { error: 'Failed to load validator script' });
+        };
+
+        (document.head || document.documentElement).appendChild(script);
+    }
+
+    function injectSelector(autoActivate = true) {
+        if (isSelectorInjected) {
+            // Already injected, just send activation command
+            if (autoActivate) {
+                sendToPage('CMD_ACTIVATE_SELECTOR');
+            }
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.src = chrome.runtime.getURL('lib/element-selector.js');
+
+        if (autoActivate) {
+            // Set flag for auto-activation
+            const flagScript = document.createElement('script');
+            flagScript.textContent = 'window.__LMS_SELECTOR_AUTO_ACTIVATE__ = true;';
+            (document.head || document.documentElement).appendChild(flagScript);
+            flagScript.remove();
+        }
+
+        script.onload = function() {
+            this.remove();
+            isSelectorInjected = true;
+            log.info('Element selector injected');
+        };
+
+        script.onerror = function() {
+            log.error('Failed to inject element selector');
+            sendToExtension('SELECTOR_INJECTION_FAILED', { error: 'Failed to load selector script' });
         };
 
         (document.head || document.documentElement).appendChild(script);
@@ -169,6 +206,16 @@
 
         [CMD.PING]: () => {
             return { success: true, injected: isInjected };
+        },
+
+        [CMD.ACTIVATE_SELECTOR]: () => {
+            injectSelector(true);
+            return { success: true };
+        },
+
+        [CMD.DEACTIVATE_SELECTOR]: () => {
+            sendToPage('CMD_DEACTIVATE_SELECTOR');
+            return { success: true };
         }
     };
 

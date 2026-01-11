@@ -21,7 +21,10 @@ const MSG = Object.freeze({
     CMI_DATA: 'CMI_DATA',
     TEST_RESULT: 'TEST_RESULT',
     SET_COMPLETION_RESULT: 'SET_COMPLETION_RESULT',
-    AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT'
+    AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT',
+    SELECTOR_ACTIVATED: 'SELECTOR_ACTIVATED',
+    SELECTOR_DEACTIVATED: 'SELECTOR_DEACTIVATED',
+    SELECTOR_RULE_CREATED: 'SELECTOR_RULE_CREATED'
 });
 
 const LMS_URL_PATTERNS = [
@@ -213,6 +216,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             notifyPopup(MSG.AUTO_SELECT_RESULT, { tabId, ...message.payload });
             break;
 
+        case MSG.SELECTOR_ACTIVATED:
+            log.info(`Selector activated on tab ${tabId}`);
+            notifyPopup(MSG.SELECTOR_ACTIVATED, { tabId });
+            break;
+
+        case MSG.SELECTOR_DEACTIVATED:
+            log.info(`Selector deactivated on tab ${tabId}`);
+            notifyPopup(MSG.SELECTOR_DEACTIVATED, { tabId });
+            break;
+
+        case MSG.SELECTOR_RULE_CREATED:
+            log.info(`Selector rule created`, message.payload?.rule);
+            storeSelectionRule(message.payload?.rule);
+            notifyPopup(MSG.SELECTOR_RULE_CREATED, { tabId, rule: message.payload?.rule });
+            break;
+
         case MSG.STATE:
             TabState.update(tabId, { results: message.payload });
             notifyPopup('STATE_UPDATE', { tabId, results: message.payload });
@@ -251,6 +270,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 log.info(`Cleared state for tab ${message.tabId}`);
             }
             break;
+
+        case 'GET_SELECTOR_RULES':
+            getSelectionRules(message.urlPattern).then(rules => {
+                sendResponse({ rules });
+            });
+            return true;
+
+        case 'GET_ALL_SELECTOR_RULES':
+            getAllSelectionRules().then(rules => {
+                sendResponse({ rules });
+            });
+            return true;
+
+        case 'DELETE_SELECTOR_RULE':
+            deleteSelectionRule(message.urlPattern).then(() => {
+                sendResponse({ success: true });
+            });
+            return true;
     }
 
     return false;
@@ -351,6 +388,103 @@ async function scanSpecificTab(tabId) {
     } catch (error) {
         log.error(`Failed to scan tab ${tabId}: ${error.message}`);
         return { success: false, error: error.message, tabId };
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SELECTOR RULES STORAGE
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function storeSelectionRule(rule) {
+    if (!rule?.urlPattern) {
+        log.error('Cannot store rule without urlPattern');
+        return;
+    }
+
+    try {
+        const data = await chrome.storage.local.get('selectorRules');
+        const rules = data.selectorRules || {};
+
+        rules[rule.urlPattern] = {
+            questionSelector: rule.questionSelector,
+            answerSelector: rule.answerSelector,
+            correctSelector: rule.correctSelector,
+            created: rule.created || new Date().toISOString(),
+            questionCount: rule.questionCount,
+            answerCount: rule.answerCount
+        };
+
+        await chrome.storage.local.set({ selectorRules: rules });
+        log.info(`Stored selector rule for ${rule.urlPattern}`);
+    } catch (error) {
+        log.error('Failed to store selector rule:', error.message);
+    }
+}
+
+async function getSelectionRules(urlPattern) {
+    try {
+        const data = await chrome.storage.local.get('selectorRules');
+        const rules = data.selectorRules || {};
+
+        if (urlPattern) {
+            // Return exact match or matching patterns
+            const exactMatch = rules[urlPattern];
+            if (exactMatch) return exactMatch;
+
+            // Try to find a matching wildcard pattern
+            for (const [pattern, rule] of Object.entries(rules)) {
+                if (urlMatchesPattern(urlPattern, pattern)) {
+                    return rule;
+                }
+            }
+            return null;
+        }
+
+        return rules;
+    } catch (error) {
+        log.error('Failed to get selector rules:', error.message);
+        return null;
+    }
+}
+
+async function getAllSelectionRules() {
+    try {
+        const data = await chrome.storage.local.get('selectorRules');
+        return data.selectorRules || {};
+    } catch (error) {
+        log.error('Failed to get all selector rules:', error.message);
+        return {};
+    }
+}
+
+async function deleteSelectionRule(urlPattern) {
+    if (!urlPattern) return;
+
+    try {
+        const data = await chrome.storage.local.get('selectorRules');
+        const rules = data.selectorRules || {};
+
+        delete rules[urlPattern];
+
+        await chrome.storage.local.set({ selectorRules: rules });
+        log.info(`Deleted selector rule for ${urlPattern}`);
+    } catch (error) {
+        log.error('Failed to delete selector rule:', error.message);
+    }
+}
+
+function urlMatchesPattern(url, pattern) {
+    // Convert pattern to regex
+    // example.com/course/* -> example\.com/course/.*
+    const regexPattern = pattern
+        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')  // Escape special chars except *
+        .replace(/\*/g, '.*');                    // Convert * to .*
+
+    try {
+        const regex = new RegExp(`^${regexPattern}$`);
+        return regex.test(url);
+    } catch {
+        return false;
     }
 }
 

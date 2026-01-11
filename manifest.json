@@ -45,6 +45,7 @@
         {
             "resources": [
                 "lib/lms-qa-validator.js",
+                "lib/element-selector.js",
                 "lib/constants.js"
             ],
             "matches": ["<all_urls>"]

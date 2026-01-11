@@ -859,3 +859,57 @@ body {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   10. SAVED RULES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.saved-rules {
+    padding: var(--spacing-md);
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg-elevated);
+}
+
+.saved-rules .section-header {
+    margin-bottom: var(--spacing-sm);
+}
+
+.rule-info {
+    padding: var(--spacing-sm);
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.rule-pattern {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-accent);
+    word-break: break-all;
+    margin-bottom: 4px;
+}
+
+.rule-stats {
+    font-size: 11px;
+    color: var(--color-text-muted);
+}
+
+.rule-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.btn-danger {
+    color: var(--color-error);
+    border-color: var(--color-error);
+}
+
+.btn-danger:hover {
+    background: var(--color-error);
+    color: white;
+}
