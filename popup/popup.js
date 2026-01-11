@@ -61,11 +61,45 @@
     });
 
     // LMS URL patterns for activation check
+    // Organized by category for maintainability
     const LMS_URL_PATTERNS = [
-        /scorm/i, /lms/i, /learn/i, /training/i, /course/i,
-        /articulate/i, /storyline/i, /captivate/i, /lectora/i,
-        /bravo/i, /moodle/i, /blackboard/i, /canvas/i,
-        /ispring/i, /rise360/i, /xapi/i
+        // Generic e-learning terms
+        /scorm/i, /xapi/i, /tincan/i, /aicc/i, /cmi5/i,
+        /lms/i, /lcms/i, /learn/i, /training/i, /course/i,
+        /elearn/i, /e-learn/i, /education/i, /academy/i,
+        /classroom/i, /curriculum/i, /module/i, /lesson/i,
+
+        // Authoring tools
+        /articulate/i, /storyline/i, /rise360/i, /review360/i,
+        /captivate/i, /lectora/i, /ispring/i, /camtasia/i,
+        /elucidat/i, /evolve/i, /gomo/i, /adapt/i,
+        /branchtrack/i, /easygenerator/i, /dominknow/i,
+
+        // Major LMS platforms
+        /moodle/i, /blackboard/i, /canvas/i, /brightspace/i,
+        /d2l/i, /schoology/i, /edmodo/i, /sakai/i,
+
+        // Enterprise LMS
+        /cornerstone/i, /csod/i, /successfactors/i, /sap.*learning/i,
+        /workday.*learn/i, /docebo/i, /absorb/i, /litmos/i,
+        /talentlms/i, /skillsoft/i, /pluralsight/i, /udemy/i,
+        /linkedin.*learn/i, /degreed/i, /edcast/i,
+
+        // Healthcare/Compliance LMS
+        /healthstream/i, /relias/i, /netlearning/i, /medbridge/i,
+        /compliancebridge/i, /kallidus/i, /netexlearning/i,
+
+        // Government/Public Sector
+        /govlearn/i, /fedvte/i, /alms\.army/i, /jko\.jten/i,
+
+        // Content hosting patterns
+        /scormcloud/i, /scormengine/i, /rustici/i,
+        /content\.one/i, /player\.vimeo/i, /wistia/i,
+
+        // Common URL path patterns
+        /\/launch\//i, /\/player\//i, /\/viewer\//i,
+        /\/courseware\//i, /\/content\//i, /\/modules\//i,
+        /launchcourse/i, /playcourse/i, /startcourse/i
     ];
 
     // ═══════════════════════════════════════════════════════════════════════════
