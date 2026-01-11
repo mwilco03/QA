@@ -373,19 +373,24 @@
 
             $.relatedWindows.classList.add('active');
 
-            const icons = { parent: '↑', child: '↓', sibling: '↔', 'domain-session': '🌐' };
+            const icons = { parent: '↑', child: '↓', sibling: '↔', 'domain-session': '🌐', 'cross-domain': '🔗' };
 
-            $.relatedList.innerHTML = tabs.map(tab => `
+            $.relatedList.innerHTML = tabs.map(tab => {
+                const domainInfo = tab.domain ? ` (${tab.domain})` : '';
+                const tooltip = tab.relationship === 'cross-domain'
+                    ? `Cross-domain: ${tab.domain}`
+                    : tab.relationship;
+                return `
                 <div class="related-tab" data-tab-id="${tab.id}">
-                    <span class="related-icon" title="${tab.relationship}">${icons[tab.relationship] || '?'}</span>
-                    <span class="related-title" title="${escapeHtml(tab.title)}">${truncate(tab.title, 30)}</span>
+                    <span class="related-icon" title="${tooltip}">${icons[tab.relationship] || '?'}</span>
+                    <span class="related-title" title="${escapeHtml(tab.title)}${domainInfo}">${truncate(tab.title, 30)}</span>
                     <div class="related-actions">
                         <button class="btn-sm btn-pick-tab" data-tab-id="${tab.id}" title="Pick Q&A Elements">Pick</button>
                         <button class="btn-sm btn-scan-tab" data-tab-id="${tab.id}" title="Pattern Scan">Scan</button>
                         <button class="btn-sm btn-focus-tab" data-tab-id="${tab.id}" title="Focus Window">Go</button>
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         }
     };
 

@@ -89,8 +89,12 @@ const TabState = {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DOMAIN SESSION TRACKING
-// Track all tabs on a domain when extension is activated
+// Track all tabs across related domains when extension is activated
+// Supports cross-domain training (LMS portal → content CDN)
 // ═══════════════════════════════════════════════════════════════════════════
+
+let sessionIdCounter = 0;
+const domainToSessionId = new Map(); // domain -> sessionId (for quick lookup)
 
 const DomainSession = {
     getDomain(url) {
@@ -106,90 +110,151 @@ const DomainSession = {
         const domain = this.getDomain(url);
         if (!domain) return;
 
-        if (!activeDomainSessions.has(domain)) {
-            activeDomainSessions.set(domain, {
+        // Check if this domain already belongs to a session
+        let sessionId = domainToSessionId.get(domain);
+
+        if (!sessionId) {
+            // Create new session
+            sessionId = ++sessionIdCounter;
+            activeDomainSessions.set(sessionId, {
+                domains: new Set([domain]),
                 tabs: new Set(),
                 startTime: Date.now(),
                 primaryTabId: tabId
             });
-            log.info(`Started domain session for ${domain}`);
+            domainToSessionId.set(domain, sessionId);
+            log.info(`Started session ${sessionId} for domain ${domain}`);
         }
 
-        const session = activeDomainSessions.get(domain);
+        const session = activeDomainSessions.get(sessionId);
         session.tabs.add(tabId);
 
         // Find and add all existing tabs on this domain
-        await this.discoverDomainTabs(domain);
+        await this.discoverSessionTabs(sessionId);
     },
 
-    // Discover all open tabs on a domain
-    async discoverDomainTabs(domain) {
+    // Link a new domain to an existing session (for cross-domain training)
+    linkDomainToSession(newDomain, existingTabId) {
+        // Find the session that contains the existing tab
+        for (const [sessionId, session] of activeDomainSessions) {
+            if (session.tabs.has(existingTabId)) {
+                if (!session.domains.has(newDomain)) {
+                    session.domains.add(newDomain);
+                    domainToSessionId.set(newDomain, sessionId);
+                    log.info(`Linked domain ${newDomain} to session ${sessionId} (now tracking: ${[...session.domains].join(', ')})`);
+                }
+                return sessionId;
+            }
+        }
+        return null;
+    },
+
+    // Discover all open tabs on all domains in a session
+    async discoverSessionTabs(sessionId) {
         try {
             const allTabs = await chrome.tabs.query({});
-            const session = activeDomainSessions.get(domain);
+            const session = activeDomainSessions.get(sessionId);
             if (!session) return;
 
             for (const tab of allTabs) {
                 const tabDomain = this.getDomain(tab.url);
-                if (tabDomain === domain) {
+                if (tabDomain && session.domains.has(tabDomain)) {
                     session.tabs.add(tab.id);
-                    TabState.update(tab.id, { sessionDomain: domain });
+                    TabState.update(tab.id, { sessionId });
                 }
             }
 
-            log.info(`Domain session ${domain}: ${session.tabs.size} tabs tracked`);
+            log.info(`Session ${sessionId}: ${session.tabs.size} tabs across ${session.domains.size} domains`);
         } catch (error) {
-            log.error('Failed to discover domain tabs:', error.message);
+            log.error('Failed to discover session tabs:', error.message);
         }
     },
 
-    // Add a new tab to an existing domain session
-    addTab(tabId, url) {
+    // Add a new tab to an existing session (checks all domains in session)
+    addTab(tabId, url, openerTabId = null) {
         const domain = this.getDomain(url);
         if (!domain) return false;
 
-        const session = activeDomainSessions.get(domain);
-        if (session) {
-            session.tabs.add(tabId);
-            TabState.update(tabId, { sessionDomain: domain });
-            log.info(`Added tab ${tabId} to domain session ${domain}`);
-            return true;
+        // First, check if this domain is already in a session
+        const sessionId = domainToSessionId.get(domain);
+        if (sessionId) {
+            const session = activeDomainSessions.get(sessionId);
+            if (session) {
+                session.tabs.add(tabId);
+                TabState.update(tabId, { sessionId });
+                log.info(`Added tab ${tabId} to session ${sessionId} (domain: ${domain})`);
+                return true;
+            }
         }
+
+        // If opener is in a session, link this new domain to that session
+        if (openerTabId) {
+            for (const [sessId, session] of activeDomainSessions) {
+                if (session.tabs.has(openerTabId)) {
+                    // Cross-domain popup - link the new domain
+                    session.domains.add(domain);
+                    session.tabs.add(tabId);
+                    domainToSessionId.set(domain, sessId);
+                    TabState.update(tabId, { sessionId: sessId });
+                    log.info(`Cross-domain link: tab ${tabId} (${domain}) linked to session ${sessId} via opener ${openerTabId}`);
+                    return true;
+                }
+            }
+        }
+
         return false;
     },
 
-    // Remove a tab from its domain session
+    // Remove a tab from its session
     removeTab(tabId) {
-        for (const [domain, session] of activeDomainSessions) {
+        for (const [sessionId, session] of activeDomainSessions) {
             if (session.tabs.has(tabId)) {
                 session.tabs.delete(tabId);
                 if (session.tabs.size === 0) {
-                    activeDomainSessions.delete(domain);
-                    log.info(`Ended domain session for ${domain} (no tabs remaining)`);
+                    // Clean up session and domain mappings
+                    for (const domain of session.domains) {
+                        domainToSessionId.delete(domain);
+                    }
+                    activeDomainSessions.delete(sessionId);
+                    log.info(`Ended session ${sessionId} (no tabs remaining)`);
                 }
                 return;
             }
         }
     },
 
-    // Get all tabs in the same domain session
+    // Get all tabs in the same session as a given tab
     getSessionTabs(tabId) {
-        for (const [domain, session] of activeDomainSessions) {
+        for (const [sessionId, session] of activeDomainSessions) {
             if (session.tabs.has(tabId)) {
-                return { domain, tabs: Array.from(session.tabs), primaryTabId: session.primaryTabId };
+                return {
+                    sessionId,
+                    domains: Array.from(session.domains),
+                    tabs: Array.from(session.tabs),
+                    primaryTabId: session.primaryTabId
+                };
             }
         }
         return null;
     },
 
-    // Get session by domain
+    // Get session by any of its domains
     getByDomain(domain) {
-        return activeDomainSessions.get(domain) || null;
+        const sessionId = domainToSessionId.get(domain);
+        if (sessionId) {
+            return activeDomainSessions.get(sessionId) || null;
+        }
+        return null;
     },
 
     // Check if a domain has an active session
     hasSession(domain) {
-        return activeDomainSessions.has(domain);
+        return domainToSessionId.has(domain);
+    },
+
+    // Get session ID for a domain
+    getSessionId(domain) {
+        return domainToSessionId.get(domain) || null;
     }
 };
 
@@ -235,9 +300,9 @@ chrome.tabs.onCreated.addListener((tab) => {
         TabState.addRelationship(tab.id, tab.openerTabId);
     }
 
-    // If we have a pending URL and there's an active domain session for it, add this tab
+    // If we have a pending URL, try to add to session (supports cross-domain via opener)
     if (tab.pendingUrl) {
-        DomainSession.addTab(tab.id, tab.pendingUrl);
+        DomainSession.addTab(tab.id, tab.pendingUrl, tab.openerTabId);
     }
 });
 
@@ -247,10 +312,14 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
     // Check if this tab belongs to an active domain session
     const domain = DomainSession.getDomain(tab.url);
-    const hasActiveSession = domain && DomainSession.hasSession(domain);
+    let hasActiveSession = domain && DomainSession.hasSession(domain);
 
-    // Add to domain session if one exists
-    if (hasActiveSession) {
+    // Try to add to session (supports cross-domain via opener relationship)
+    const openerTabId = tab.openerTabId || TabState.getParent(tabId);
+    if (!hasActiveSession && openerTabId) {
+        // Try to link via opener for cross-domain training content
+        hasActiveSession = DomainSession.addTab(tabId, tab.url, openerTabId);
+    } else if (hasActiveSession) {
         DomainSession.addTab(tabId, tab.url);
     }
 
@@ -486,10 +555,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case 'END_DOMAIN_SESSION':
             const domainToEnd = message.domain || DomainSession.getDomain(url);
-            if (domainToEnd && activeDomainSessions.has(domainToEnd)) {
-                activeDomainSessions.delete(domainToEnd);
-                log.info(`Manually ended domain session for ${domainToEnd}`);
-                sendResponse({ success: true, domain: domainToEnd });
+            const sessionToEnd = domainToEnd ? DomainSession.getSessionId(domainToEnd) : null;
+            if (sessionToEnd) {
+                const session = activeDomainSessions.get(sessionToEnd);
+                if (session) {
+                    // Clean up all domain mappings for this session
+                    for (const d of session.domains) {
+                        domainToSessionId.delete(d);
+                    }
+                    activeDomainSessions.delete(sessionToEnd);
+                    log.info(`Manually ended session ${sessionToEnd} (domains: ${[...session.domains].join(', ')})`);
+                    sendResponse({ success: true, sessionId: sessionToEnd, domains: [...session.domains] });
+                }
             } else {
                 sendResponse({ success: false, error: 'No active session for domain' });
             }
@@ -582,21 +659,25 @@ async function getRelatedTabs(tabId) {
         }
     }
 
-    // Domain session tabs (tabs on same domain when session is active)
+    // Session tabs (may span multiple domains for cross-domain training)
     const session = DomainSession.getSessionTabs(tabId);
     if (session) {
         const addedIds = new Set(related.map(r => r.id));
         addedIds.add(tabId); // Don't include self
+        const currentDomain = DomainSession.getDomain(allTabs.find(t => t.id === tabId)?.url);
 
         for (const sessionTabId of session.tabs) {
             if (!addedIds.has(sessionTabId)) {
                 const sessionTab = allTabs.find(t => t.id === sessionTabId);
                 if (sessionTab) {
+                    const tabDomain = DomainSession.getDomain(sessionTab.url);
+                    const isCrossDomain = tabDomain !== currentDomain;
                     related.push({
                         id: sessionTab.id,
                         title: sessionTab.title,
                         url: sessionTab.url,
-                        relationship: 'domain-session',
+                        domain: tabDomain,
+                        relationship: isCrossDomain ? 'cross-domain' : 'domain-session',
                         hasResults: TabState.get(sessionTab.id)?.results !== null
                     });
                 }
