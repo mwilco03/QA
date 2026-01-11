@@ -263,6 +263,33 @@
             <input type="number" id="completion-score" class="input" value="100" min="0" max="100">
             <button id="btn-set-completion" class="btn btn-accent">Set</button>
         </div>
+        <!-- Advanced Completion Options -->
+        <div class="section-subheader">
+            <span>Full Course Completion</span>
+        </div>
+        <div class="control-row completion-advanced">
+            <button id="btn-complete-objectives" class="btn btn-outline btn-sm" title="Complete all SCORM objectives">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                </svg>
+                Objectives
+            </button>
+            <button id="btn-mark-slides" class="btn btn-outline btn-sm" title="Mark all slides as viewed">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                    <path d="M8 21h8M12 17v4"/>
+                </svg>
+                Slides
+            </button>
+            <button id="btn-full-completion" class="btn btn-success btn-sm" title="Complete objectives + slides + status">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                    <path d="M22 4L12 14.01l-3-3"/>
+                </svg>
+                Full Complete
+            </button>
+        </div>
     </section>
 
     <!-- Element Picker Section -->

@@ -30,7 +30,11 @@
         DETECT_APIS: 'DETECT_APIS',
         GET_FRAME_INFO: 'GET_FRAME_INFO',
         SEED_EXTRACT: 'SEED_EXTRACT',
-        DETECT_FRAMEWORK: 'DETECT_FRAMEWORK'
+        DETECT_FRAMEWORK: 'DETECT_FRAMEWORK',
+        // Objectives and slides completion
+        COMPLETE_OBJECTIVES: 'COMPLETE_OBJECTIVES',
+        MARK_SLIDES: 'MARK_SLIDES',
+        FULL_COMPLETION: 'FULL_COMPLETION'
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -409,6 +413,60 @@
             }
 
             return detection;
+        },
+
+        [CMD.COMPLETE_OBJECTIVES]: (message) => {
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_COMPLETE_OBJECTIVES', {
+                    status: message.status || 'passed',
+                    score: message.score || 100,
+                    apiIndex: message.apiIndex || 0
+                }), 100);
+            } else {
+                sendToPage('CMD_COMPLETE_OBJECTIVES', {
+                    status: message.status || 'passed',
+                    score: message.score || 100,
+                    apiIndex: message.apiIndex || 0
+                });
+            }
+            return { success: true };
+        },
+
+        [CMD.MARK_SLIDES]: (message) => {
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_MARK_SLIDES', {
+                    tool: message.tool || null,
+                    apiIndex: message.apiIndex || 0
+                }), 100);
+            } else {
+                sendToPage('CMD_MARK_SLIDES', {
+                    tool: message.tool || null,
+                    apiIndex: message.apiIndex || 0
+                });
+            }
+            return { success: true };
+        },
+
+        [CMD.FULL_COMPLETION]: (message) => {
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_FULL_COMPLETION', {
+                    status: message.status || 'passed',
+                    score: message.score || 100,
+                    tool: message.tool || null,
+                    apiIndex: message.apiIndex || 0
+                }), 100);
+            } else {
+                sendToPage('CMD_FULL_COMPLETION', {
+                    status: message.status || 'passed',
+                    score: message.score || 100,
+                    tool: message.tool || null,
+                    apiIndex: message.apiIndex || 0
+                });
+            }
+            return { success: true };
         }
     };
 

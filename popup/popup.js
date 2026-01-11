@@ -38,7 +38,11 @@
         EXTRACTION_ERROR: 'EXTRACTION_ERROR',
         SELECTOR_INJECTION_FAILED: 'SELECTOR_INJECTION_FAILED',
         FRAMEWORK_DETECTED: 'FRAMEWORK_DETECTED',
-        DETECTION_COMPLETE: 'DETECTION_COMPLETE'
+        DETECTION_COMPLETE: 'DETECTION_COMPLETE',
+        // Objectives and slides completion
+        OBJECTIVES_COMPLETE: 'OBJECTIVES_COMPLETE',
+        SLIDES_MARKED: 'SLIDES_MARKED',
+        FULL_COMPLETION_RESULT: 'FULL_COMPLETION_RESULT'
     });
 
     const STATUS = Object.freeze({
@@ -208,6 +212,7 @@
             'qa-count', 'apis-count', 'correct-count', 'logs-count',
             'scorm-controls', 'completion-status', 'completion-score',
             'btn-test-api', 'btn-set-completion', 'btn-copy-all-correct',
+            'btn-complete-objectives', 'btn-mark-slides', 'btn-full-completion',
             'element-picker', 'btn-auto-select', 'btn-element-selector',
             'saved-rules', 'rule-info', 'btn-apply-rule', 'btn-delete-rule',
             'rules-management', 'rules-count', 'btn-export-rules', 'btn-import-rules', 'rules-file-input',
@@ -1196,6 +1201,39 @@
             }
         },
 
+        async completeObjectives() {
+            const status = $.completionStatus?.value || 'passed';
+            const score = parseInt($.completionScore?.value || '100', 10);
+
+            try {
+                Toast.info('Completing all objectives...');
+                await Extension.sendToContent('COMPLETE_OBJECTIVES', { status, score, apiIndex: 0 });
+            } catch (error) {
+                Toast.error('Failed to complete objectives');
+            }
+        },
+
+        async markAllSlides() {
+            try {
+                Toast.info('Marking all slides as viewed...');
+                await Extension.sendToContent('MARK_SLIDES', { apiIndex: 0 });
+            } catch (error) {
+                Toast.error('Failed to mark slides');
+            }
+        },
+
+        async fullCompletion() {
+            const status = $.completionStatus?.value || 'passed';
+            const score = parseInt($.completionScore?.value || '100', 10);
+
+            try {
+                Toast.info('Running full course completion...');
+                await Extension.sendToContent('FULL_COMPLETION', { status, score, apiIndex: 0 });
+            } catch (error) {
+                Toast.error('Failed to set completion');
+            }
+        },
+
         async autoSelect() {
             if (!$.btnAutoSelect) return;
 
@@ -1812,6 +1850,35 @@
             Toast.error(errorMsg);
         },
 
+        [MSG.OBJECTIVES_COMPLETE]: (payload) => {
+            if (payload.success) {
+                const msg = `Completed ${payload.objectivesCompleted}/${payload.objectivesFound} objectives`;
+                Toast.success(msg);
+            } else {
+                Toast.error('Failed to complete objectives: ' + (payload.errors?.join(', ') || 'Unknown error'));
+            }
+        },
+
+        [MSG.SLIDES_MARKED]: (payload) => {
+            if (payload.success) {
+                const msg = `Marked ${payload.slidesMarked}/${payload.slidesFound} slides as viewed (${payload.tool || 'generic'})`;
+                Toast.success(msg);
+            } else {
+                Toast.error('Failed to mark slides: ' + (payload.errors?.join(', ') || 'Unknown error'));
+            }
+        },
+
+        [MSG.FULL_COMPLETION_RESULT]: (payload) => {
+            if (payload.success) {
+                const objMsg = payload.objectives ? `${payload.objectives.objectivesCompleted} objectives` : '';
+                const slideMsg = payload.slides ? `${payload.slides.slidesMarked} slides` : '';
+                const parts = [objMsg, slideMsg].filter(Boolean).join(', ');
+                Toast.success(`Full completion successful: ${parts || 'Course marked complete'}`);
+            } else {
+                Toast.error('Full completion failed: ' + (payload.errors?.join(', ') || 'Unknown error'));
+            }
+        },
+
         [MSG.DETECTION_COMPLETE]: (payload) => {
             if (payload.framework) {
                 State.detectedFramework = payload.framework;
@@ -1892,6 +1959,9 @@
         // SCORM controls
         $.btnTestApi?.addEventListener('click', () => Actions.testAPI());
         $.btnSetCompletion?.addEventListener('click', () => Actions.setCompletion());
+        $.btnCompleteObjectives?.addEventListener('click', () => Actions.completeObjectives());
+        $.btnMarkSlides?.addEventListener('click', () => Actions.markAllSlides());
+        $.btnFullCompletion?.addEventListener('click', () => Actions.fullCompletion());
 
         // Quick copy
         $.btnCopyAllCorrect?.addEventListener('click', () => Actions.copyAllCorrect());
