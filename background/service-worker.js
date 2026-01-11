@@ -253,6 +253,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             notifyPopup('STATE_UPDATE', { tabId, results: message.payload });
             break;
 
+        case 'WINDOW_INFO':
+            // Content script reporting window.opener relationship
+            if (message.payload?.isPopup && tabId) {
+                log.info(`Popup window detected: tab ${tabId}, name: ${message.payload.windowName}`);
+                TabState.update(tabId, {
+                    isPopup: true,
+                    windowName: message.payload.windowName
+                });
+                // Try to find parent tab and establish relationship
+                findAndLinkParentTab(tabId, message.payload.url);
+            }
+            break;
+
         case 'GET_TAB_STATE':
             const requestedTabId = message.tabId || tabId;
             const state = TabState.get(requestedTabId);
@@ -411,6 +424,38 @@ async function getRelatedTabs(tabId) {
     }
 
     return related;
+}
+
+async function findAndLinkParentTab(childTabId, childUrl) {
+    try {
+        const allTabs = await chrome.tabs.query({});
+        const childDomain = new URL(childUrl).hostname;
+
+        // Look for potential parent tabs on same domain
+        for (const tab of allTabs) {
+            if (tab.id === childTabId) continue;
+
+            try {
+                const tabDomain = new URL(tab.url).hostname;
+                // Same domain and has LMS-like URL patterns
+                if (tabDomain === childDomain && isLikelyLMSUrl(tab.url)) {
+                    // Check if this tab already has children or is a likely parent
+                    const existingChildren = TabState.getChildren(tab.id);
+
+                    // If no explicit relationship exists, create one
+                    if (!TabState.getParent(childTabId)) {
+                        TabState.addRelationship(childTabId, tab.id);
+                        log.info(`Linked popup tab ${childTabId} to parent tab ${tab.id}`);
+                        return;
+                    }
+                }
+            } catch (e) {
+                // Invalid URL
+            }
+        }
+    } catch (error) {
+        log.error('Failed to find parent tab:', error.message);
+    }
 }
 
 async function scanSpecificTab(tabId) {
