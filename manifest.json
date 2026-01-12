@@ -44,7 +44,8 @@
     "web_accessible_resources": [
         {
             "resources": [
-                "lib/lms-qa-validator.js"
+                "lib/lms-qa-validator.js",
+                "lib/tasks-extractor.js"
             ],
             "matches": ["<all_urls>"]
         }

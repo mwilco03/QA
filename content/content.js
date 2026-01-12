@@ -31,7 +31,11 @@
         COMPLETE_OBJECTIVES: 'COMPLETE_OBJECTIVES',
         MARK_SLIDES: 'MARK_SLIDES',
         FULL_COMPLETION: 'FULL_COMPLETION',
-        ESTIMATE_DURATION: 'ESTIMATE_DURATION'
+        ESTIMATE_DURATION: 'ESTIMATE_DURATION',
+        // Tasks Extractor commands
+        GET_EXTRACTED_DATA: 'GET_EXTRACTED_DATA',
+        GET_QUESTIONS: 'GET_QUESTIONS',
+        GET_CORRECT_ANSWERS: 'GET_CORRECT_ANSWERS'
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -39,6 +43,7 @@
     // ═══════════════════════════════════════════════════════════════════════════
 
     let isInjected = false;
+    let isExtractorInjected = false;
     // Use try/catch for cross-origin safety when checking window.top
     let isTopFrame = true;
     try {
@@ -81,6 +86,25 @@
         script.onerror = function() {
             log.error('Failed to inject validator');
             sendToExtension('INJECTION_FAILED', { error: 'Failed to load validator script' });
+        };
+
+        (document.head || document.documentElement).appendChild(script);
+    }
+
+    function injectTasksExtractor() {
+        if (isExtractorInjected) return;
+
+        const script = document.createElement('script');
+        script.src = chrome.runtime.getURL('lib/tasks-extractor.js');
+
+        script.onload = function() {
+            this.remove();
+            isExtractorInjected = true;
+            log.info('Tasks Extractor injected');
+        };
+
+        script.onerror = function() {
+            log.error('Failed to inject Tasks Extractor');
         };
 
         (document.head || document.documentElement).appendChild(script);
@@ -370,6 +394,37 @@
                 sendToPage('CMD_ESTIMATE_DURATION', {});
             }
             return { success: true };
+        },
+
+        // Tasks Extractor commands
+        [CMD.GET_EXTRACTED_DATA]: () => {
+            if (!isExtractorInjected) {
+                injectTasksExtractor();
+                setTimeout(() => sendToPage('CMD_GET_EXTRACTED_DATA'), 100);
+            } else {
+                sendToPage('CMD_GET_EXTRACTED_DATA');
+            }
+            return { success: true };
+        },
+
+        [CMD.GET_QUESTIONS]: () => {
+            if (!isExtractorInjected) {
+                injectTasksExtractor();
+                setTimeout(() => sendToPage('CMD_GET_QUESTIONS'), 100);
+            } else {
+                sendToPage('CMD_GET_QUESTIONS');
+            }
+            return { success: true };
+        },
+
+        [CMD.GET_CORRECT_ANSWERS]: () => {
+            if (!isExtractorInjected) {
+                injectTasksExtractor();
+                setTimeout(() => sendToPage('CMD_GET_CORRECT_ANSWERS'), 100);
+            } else {
+                sendToPage('CMD_GET_CORRECT_ANSWERS');
+            }
+            return { success: true };
         }
     };
 
@@ -390,6 +445,10 @@
     // ═══════════════════════════════════════════════════════════════════════════
 
     log.info(`Content script loaded (${isTopFrame ? 'TOP FRAME' : 'iframe'}, id: ${frameId})`);
+
+    // Auto-inject Tasks Extractor to capture network traffic early
+    // This runs in the page context to intercept fetch/XHR
+    injectTasksExtractor();
 
     // Report window relationship for better child/popup window detection
     try {

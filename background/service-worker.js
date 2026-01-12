@@ -26,7 +26,15 @@ const MSG = Object.freeze({
     EXTRACTION_ERROR: 'EXTRACTION_ERROR',
     FRAMEWORK_DETECTED: 'FRAMEWORK_DETECTED',
     DETECTION_COMPLETE: 'DETECTION_COMPLETE',
-    STATE_UPDATE: 'STATE_UPDATE'
+    STATE_UPDATE: 'STATE_UPDATE',
+    // Tasks Extractor messages
+    EXTRACTOR_READY: 'EXTRACTOR_READY',
+    EXTRACTOR_TASKS_MANIFEST_DISCOVERED: 'EXTRACTOR_TASKS_MANIFEST_DISCOVERED',
+    EXTRACTOR_ANSWER_RECORDED: 'EXTRACTOR_ANSWER_RECORDED',
+    EXTRACTOR_COMPLETION_DETECTED: 'EXTRACTOR_COMPLETION_DETECTED',
+    EXTRACTOR_EXTRACTED_DATA: 'EXTRACTOR_EXTRACTED_DATA',
+    EXTRACTOR_QUESTIONS: 'EXTRACTOR_QUESTIONS',
+    EXTRACTOR_CORRECT_ANSWERS: 'EXTRACTOR_CORRECT_ANSWERS'
 });
 
 const LMS_URL_PATTERNS = [
@@ -429,6 +437,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case MSG.STATE:
             TabState.update(tabId, { results: message.payload });
             notifyPopup('STATE_UPDATE', { tabId, results: message.payload });
+            break;
+
+        // Tasks Extractor events
+        case MSG.EXTRACTOR_READY:
+            log.info(`Tasks Extractor ready on tab ${tabId}`);
+            TabState.update(tabId, { extractorReady: true });
+            break;
+
+        case MSG.EXTRACTOR_TASKS_MANIFEST_DISCOVERED:
+            log.info(`Tasks manifest discovered on tab ${tabId}: ${message.payload?.slug}`);
+            TabState.update(tabId, {
+                tasksManifest: message.payload,
+                questionCount: message.payload?.questionCount || 0
+            });
+            notifyPopup(MSG.EXTRACTOR_TASKS_MANIFEST_DISCOVERED, { tabId, ...message.payload });
+            break;
+
+        case MSG.EXTRACTOR_ANSWER_RECORDED:
+            log.debug(`Answer recorded on tab ${tabId}: ${message.payload?.questionId}`);
+            notifyPopup(MSG.EXTRACTOR_ANSWER_RECORDED, { tabId, ...message.payload });
+            break;
+
+        case MSG.EXTRACTOR_COMPLETION_DETECTED:
+            log.info(`Completion detected on tab ${tabId}: ${message.payload?.verb}`);
+            notifyPopup(MSG.EXTRACTOR_COMPLETION_DETECTED, { tabId, ...message.payload });
+            break;
+
+        case MSG.EXTRACTOR_EXTRACTED_DATA:
+            log.debug(`Extracted data received from tab ${tabId}`);
+            TabState.update(tabId, { extractedData: message.payload });
+            notifyPopup(MSG.EXTRACTOR_EXTRACTED_DATA, { tabId, ...message.payload });
+            break;
+
+        case MSG.EXTRACTOR_QUESTIONS:
+            notifyPopup(MSG.EXTRACTOR_QUESTIONS, { tabId, ...message.payload });
+            break;
+
+        case MSG.EXTRACTOR_CORRECT_ANSWERS:
+            notifyPopup(MSG.EXTRACTOR_CORRECT_ANSWERS, { tabId, ...message.payload });
             break;
 
         case 'WINDOW_INFO':
