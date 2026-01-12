@@ -583,7 +583,6 @@
 
             // Update workflow state to show results
             State.setWorkflow(WORKFLOW.RESULTS);
-            UI.showSearchContainer(State.hasResults());
 
             if (results.apis?.length > 0) {
                 $.scormControls?.classList.add('active');
