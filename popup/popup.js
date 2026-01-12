@@ -44,6 +44,11 @@
         SLIDES_MARKED: 'SLIDES_MARKED',
         FULL_COMPLETION_RESULT: 'FULL_COMPLETION_RESULT',
         DURATION_ESTIMATE: 'DURATION_ESTIMATE'
+        // Question Bank messages
+        BANK_SAVED: 'BANK_SAVED',
+        BANK_UPDATED: 'BANK_UPDATED',
+        BANK_DELETED: 'BANK_DELETED',
+        BANK_MERGED: 'BANK_MERGED'
     });
 
     const STATUS = Object.freeze({
@@ -220,6 +225,14 @@
             'rules-management', 'rules-count', 'btn-export-rules', 'btn-import-rules', 'rules-file-input',
             'export-actions', 'btn-export-json', 'btn-export-csv', 'btn-export-txt',
             'toast'
+            'btn-export-json', 'btn-export-csv', 'btn-export-txt',
+            'toast',
+            // Question Banks
+            'question-banks', 'banks-count', 'btn-save-to-bank', 'btn-view-banks',
+            'btn-export-banks', 'btn-import-banks', 'banks-file-input',
+            'bank-modal', 'modal-title', 'modal-body', 'modal-footer', 'btn-close-modal',
+            'save-bank-dialog', 'bank-name', 'tester-name', 'preview-questions',
+            'preview-answers', 'preview-correct', 'btn-cancel-save', 'btn-confirm-save', 'btn-close-save-dialog'
         ];
 
         ids.forEach(id => {
@@ -592,6 +605,16 @@
 
             // Update workflow state to show results
             State.setWorkflow(WORKFLOW.RESULTS);
+            UI.showSearchContainer(State.hasResults());
+
+            // Update save-to-bank button
+            if ($.btnSaveToBank) {
+                $.btnSaveToBank.disabled = !State.hasResults();
+            }
+
+            if (results.apis?.length > 0) {
+                $.scormControls?.classList.add('active');
+            }
         },
 
         renderToolBadge(tool) {
@@ -1690,6 +1713,498 @@
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // QUESTION BANKS
+    // Team collaboration - save, share, merge question banks
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const QuestionBanks = {
+        currentBanks: {},
+        selectedBankId: null,
+
+        async loadBanksCount() {
+            try {
+                const response = await Extension.sendToServiceWorker('GET_QUESTION_BANKS');
+                const banks = response?.banks || {};
+                const count = Object.keys(banks).length;
+                this.currentBanks = banks;
+                UI.updateBadge($.banksCount, count);
+
+                // Enable/disable save button based on results
+                if ($.btnSaveToBank) {
+                    $.btnSaveToBank.disabled = !State.hasResults();
+                }
+            } catch (error) {
+                console.error('Failed to load banks:', error);
+            }
+        },
+
+        showSaveDialog() {
+            if (!State.hasResults()) {
+                Toast.error('No scan results to save');
+                return;
+            }
+
+            // Update preview stats
+            const questions = State.results?.qa?.questions || [];
+            const items = State.results?.qa?.items || [];
+            const answers = items.filter(i => i.type === 'answer');
+            const correct = items.filter(i => i.correct);
+
+            if ($.previewQuestions) $.previewQuestions.textContent = questions.length;
+            if ($.previewAnswers) $.previewAnswers.textContent = answers.length;
+            if ($.previewCorrect) $.previewCorrect.textContent = correct.length;
+
+            // Pre-fill bank name from URL
+            if ($.bankName) {
+                try {
+                    const url = new URL(State.tabUrl);
+                    const pathParts = url.pathname.split('/').filter(p => p && !/^\d+$/.test(p));
+                    const suggestedName = pathParts.slice(-2).join(' - ') || url.hostname;
+                    $.bankName.value = suggestedName;
+                } catch {
+                    $.bankName.value = '';
+                }
+            }
+
+            // Show dialog
+            if ($.saveBankDialog) $.saveBankDialog.style.display = 'flex';
+        },
+
+        hideSaveDialog() {
+            if ($.saveBankDialog) $.saveBankDialog.style.display = 'none';
+        },
+
+        async saveToBank() {
+            const name = $.bankName?.value?.trim() || 'Unnamed Bank';
+            const testerName = $.testerName?.value?.trim() || '';
+
+            // Build questions array from results
+            const questions = State.results?.qa?.questions || [];
+            const items = State.results?.qa?.items || [];
+
+            // Group items into questions with their answers
+            const structuredQuestions = questions.map((q, idx) => {
+                const qIndex = items.findIndex(item => item.type === 'question' && item.text === q.text);
+                const answers = [];
+                for (let i = qIndex + 1; i < items.length; i++) {
+                    if (items[i].type === 'answer') {
+                        answers.push({
+                            text: items[i].text,
+                            isCorrect: items[i].correct || false
+                        });
+                    } else if (items[i].type === 'question') {
+                        break;
+                    }
+                }
+                return {
+                    text: q.text,
+                    type: q.questionType || 'choice',
+                    answers
+                };
+            });
+
+            const bankData = {
+                name,
+                testerName,
+                sourceUrl: State.tabUrl,
+                tool: State.results?.tool || 'generic',
+                questions: structuredQuestions
+            };
+
+            try {
+                const response = await Extension.sendToServiceWorker('SAVE_QUESTION_BANK', { bankData });
+                if (response?.success) {
+                    Toast.success(`Saved "${name}" with ${structuredQuestions.length} questions`);
+                    this.hideSaveDialog();
+                    await this.loadBanksCount();
+                } else {
+                    Toast.error('Failed to save: ' + (response?.error || 'Unknown error'));
+                }
+            } catch (error) {
+                Toast.error('Save failed: ' + error.message);
+            }
+        },
+
+        async showBanksList() {
+            const response = await Extension.sendToServiceWorker('GET_QUESTION_BANKS');
+            const banks = response?.banks || {};
+            this.currentBanks = banks;
+
+            const banksList = Object.values(banks);
+
+            if ($.modalTitle) $.modalTitle.textContent = 'Question Banks';
+
+            if (banksList.length === 0) {
+                if ($.modalBody) {
+                    $.modalBody.innerHTML = '<div class="bank-list-empty">No question banks saved yet.<br>Scan a page and click "Save to Bank" to create one.</div>';
+                }
+                if ($.modalFooter) $.modalFooter.innerHTML = '';
+            } else {
+                if ($.modalBody) {
+                    $.modalBody.innerHTML = `<div class="bank-list">${banksList.map(bank => this.renderBankCard(bank)).join('')}</div>`;
+                }
+                if ($.modalFooter) {
+                    $.modalFooter.innerHTML = `
+                        <button class="btn btn-outline" id="btn-merge-banks">Merge Banks</button>
+                    `;
+                }
+            }
+
+            // Show modal
+            if ($.bankModal) $.bankModal.style.display = 'flex';
+
+            // Bind card actions
+            this.bindBankCardActions();
+        },
+
+        renderBankCard(bank) {
+            const verifiedPct = bank.summary?.totalQuestions > 0
+                ? Math.round((bank.summary.verifiedQuestions / bank.summary.totalQuestions) * 100)
+                : 0;
+
+            const toolNames = {
+                storyline: 'Storyline',
+                rise: 'Rise 360',
+                captivate: 'Captivate',
+                lectora: 'Lectora',
+                ispring: 'iSpring'
+            };
+
+            return `
+                <div class="bank-card" data-bank-id="${bank.id}">
+                    <div class="bank-card-header">
+                        <span class="bank-name">${escapeHtml(bank.name)}</span>
+                        <span class="bank-tool">${toolNames[bank.tool] || bank.tool}</span>
+                    </div>
+                    <div class="bank-stats">
+                        <span>${bank.summary?.totalQuestions || 0} questions</span>
+                        <span class="verified">${verifiedPct}% verified</span>
+                    </div>
+                    <div class="bank-meta">
+                        Created by ${escapeHtml(bank.createdBy || 'Unknown')} • ${this.formatDate(bank.createdAt)}
+                    </div>
+                    <div class="bank-card-actions">
+                        <button class="btn btn-outline btn-sm btn-view-bank" data-bank-id="${bank.id}">View</button>
+                        <button class="btn btn-outline btn-sm btn-delete-bank btn-danger" data-bank-id="${bank.id}">Delete</button>
+                    </div>
+                </div>
+            `;
+        },
+
+        bindBankCardActions() {
+            // View bank
+            $.modalBody?.querySelectorAll('.btn-view-bank').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showBankDetail(btn.dataset.bankId);
+                });
+            });
+
+            // Delete bank
+            $.modalBody?.querySelectorAll('.btn-delete-bank').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const bankId = btn.dataset.bankId;
+                    const bank = this.currentBanks[bankId];
+                    if (confirm(`Delete "${bank?.name}"? This cannot be undone.`)) {
+                        await this.deleteBank(bankId);
+                    }
+                });
+            });
+
+            // Merge banks button
+            $.modalFooter?.querySelector('#btn-merge-banks')?.addEventListener('click', () => {
+                this.showMergeDialog();
+            });
+        },
+
+        async showBankDetail(bankId) {
+            const bank = this.currentBanks[bankId];
+            if (!bank) return;
+
+            this.selectedBankId = bankId;
+
+            if ($.modalTitle) $.modalTitle.textContent = bank.name;
+
+            if ($.modalBody) {
+                $.modalBody.innerHTML = `
+                    <div class="bank-detail-header">
+                        <div class="bank-detail-meta">
+                            Created by ${escapeHtml(bank.createdBy || 'Unknown')} • ${this.formatDate(bank.createdAt)}
+                            ${bank.mergeHistory?.length > 0 ? `<br>Merged ${bank.mergeHistory.length} time(s)` : ''}
+                        </div>
+                    </div>
+                    <div class="bank-detail-stats">
+                        <div class="stat">
+                            <span class="stat-value">${bank.summary?.totalQuestions || 0}</span>
+                            <span class="stat-label">Questions</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value">${bank.summary?.verifiedQuestions || 0}</span>
+                            <span class="stat-label">Verified</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value">${bank.summary?.correctAnswers || 0}</span>
+                            <span class="stat-label">Correct</span>
+                        </div>
+                    </div>
+                    <div class="bank-questions">
+                        ${bank.questions.map((q, idx) => this.renderBankQuestion(q, idx, bankId)).join('')}
+                    </div>
+                `;
+            }
+
+            if ($.modalFooter) {
+                $.modalFooter.innerHTML = `
+                    <button class="btn btn-outline" id="btn-back-to-list">Back</button>
+                    <button class="btn btn-primary" id="btn-export-single-bank">Export</button>
+                `;
+            }
+
+            // Bind actions
+            $.modalFooter?.querySelector('#btn-back-to-list')?.addEventListener('click', () => {
+                this.showBanksList();
+            });
+
+            $.modalFooter?.querySelector('#btn-export-single-bank')?.addEventListener('click', () => {
+                this.exportSingleBank(bankId);
+            });
+
+            // Bind verification checkboxes
+            this.bindVerificationHandlers(bankId);
+        },
+
+        renderBankQuestion(question, idx, bankId) {
+            const tagsHtml = question.tags.length > 0
+                ? `<div class="bank-question-tags">${question.tags.map(t => `<span class="bank-tag">${escapeHtml(t)}</span>`).join('')}</div>`
+                : '';
+
+            return `
+                <div class="bank-question-item" data-question-id="${question.id}">
+                    <div class="bank-question-text">
+                        <strong>Q${idx + 1}:</strong> ${escapeHtml(question.text)}
+                    </div>
+                    <div class="bank-question-meta">
+                        <label class="verify-checkbox">
+                            <input type="checkbox" ${question.verified ? 'checked' : ''}
+                                   data-bank-id="${bankId}" data-question-id="${question.id}" class="question-verify-cb">
+                            Verified
+                        </label>
+                        ${question.verified ? `<span class="bank-question-verified">by ${escapeHtml(question.verifiedBy || 'Unknown')}</span>` : ''}
+                        ${tagsHtml}
+                    </div>
+                </div>
+            `;
+        },
+
+        bindVerificationHandlers(bankId) {
+            $.modalBody?.querySelectorAll('.question-verify-cb').forEach(cb => {
+                cb.addEventListener('change', async (e) => {
+                    const questionId = e.target.dataset.questionId;
+                    const verified = e.target.checked;
+                    const testerName = $.testerName?.value?.trim() || localStorage.getItem('lmsqa_tester_name') || '';
+
+                    await Extension.sendToServiceWorker('UPDATE_BANK_ITEM', {
+                        updateData: {
+                            bankId,
+                            questionId,
+                            verified,
+                            testerName
+                        }
+                    });
+
+                    // Refresh view
+                    const response = await Extension.sendToServiceWorker('GET_QUESTION_BANKS', { bankId });
+                    if (response?.banks) {
+                        this.currentBanks[bankId] = response.banks;
+                        this.showBankDetail(bankId);
+                    }
+                });
+            });
+        },
+
+        showMergeDialog() {
+            const banksList = Object.values(this.currentBanks);
+            if (banksList.length < 2) {
+                Toast.info('Need at least 2 banks to merge');
+                return;
+            }
+
+            if ($.modalTitle) $.modalTitle.textContent = 'Merge Question Banks';
+
+            if ($.modalBody) {
+                $.modalBody.innerHTML = `
+                    <p style="margin-bottom: var(--space-md); color: var(--color-text-secondary);">
+                        Select a source bank to merge INTO another bank.
+                    </p>
+                    <div class="merge-banks-list">
+                        ${banksList.map(bank => `
+                            <label class="merge-bank-option">
+                                <input type="radio" name="source-bank" value="${bank.id}">
+                                <div class="merge-bank-info">
+                                    <div class="merge-bank-name">${escapeHtml(bank.name)}</div>
+                                    <div class="merge-bank-stats">${bank.summary?.totalQuestions || 0} questions</div>
+                                </div>
+                            </label>
+                        `).join('')}
+                    </div>
+                    <p style="margin-bottom: var(--space-sm); color: var(--color-text-secondary);">
+                        Merge INTO:
+                    </p>
+                    <div class="merge-banks-list">
+                        ${banksList.map(bank => `
+                            <label class="merge-bank-option">
+                                <input type="radio" name="target-bank" value="${bank.id}">
+                                <div class="merge-bank-info">
+                                    <div class="merge-bank-name">${escapeHtml(bank.name)}</div>
+                                    <div class="merge-bank-stats">${bank.summary?.totalQuestions || 0} questions</div>
+                                </div>
+                            </label>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            if ($.modalFooter) {
+                $.modalFooter.innerHTML = `
+                    <button class="btn btn-outline" id="btn-cancel-merge">Cancel</button>
+                    <button class="btn btn-primary" id="btn-confirm-merge">Merge</button>
+                `;
+            }
+
+            $.modalFooter?.querySelector('#btn-cancel-merge')?.addEventListener('click', () => {
+                this.showBanksList();
+            });
+
+            $.modalFooter?.querySelector('#btn-confirm-merge')?.addEventListener('click', async () => {
+                const sourceId = $.modalBody?.querySelector('input[name="source-bank"]:checked')?.value;
+                const targetId = $.modalBody?.querySelector('input[name="target-bank"]:checked')?.value;
+
+                if (!sourceId || !targetId) {
+                    Toast.error('Select both source and target banks');
+                    return;
+                }
+
+                if (sourceId === targetId) {
+                    Toast.error('Cannot merge bank into itself');
+                    return;
+                }
+
+                await this.mergeBanks(sourceId, targetId);
+            });
+        },
+
+        async mergeBanks(sourceId, targetId) {
+            const testerName = $.testerName?.value?.trim() || localStorage.getItem('lmsqa_tester_name') || '';
+
+            try {
+                const response = await Extension.sendToServiceWorker('MERGE_QUESTION_BANKS', {
+                    mergeData: {
+                        sourceBankId: sourceId,
+                        targetBankId: targetId,
+                        testerName,
+                        strategy: 'merge_all'
+                    }
+                });
+
+                if (response?.success) {
+                    Toast.success(`Merged! Added ${response.questionsAdded}, updated ${response.questionsUpdated}`);
+                    await this.loadBanksCount();
+                    this.showBanksList();
+                } else {
+                    Toast.error('Merge failed: ' + (response?.error || 'Unknown error'));
+                }
+            } catch (error) {
+                Toast.error('Merge failed: ' + error.message);
+            }
+        },
+
+        async deleteBank(bankId) {
+            try {
+                const response = await Extension.sendToServiceWorker('DELETE_QUESTION_BANK', { bankId });
+                if (response?.success) {
+                    Toast.success('Bank deleted');
+                    await this.loadBanksCount();
+                    this.showBanksList();
+                } else {
+                    Toast.error('Delete failed: ' + (response?.error || 'Unknown error'));
+                }
+            } catch (error) {
+                Toast.error('Delete failed: ' + error.message);
+            }
+        },
+
+        async exportSingleBank(bankId) {
+            try {
+                await Extension.sendToServiceWorker('EXPORT_QUESTION_BANKS', { bankIds: [bankId] });
+                Toast.success('Bank exported');
+            } catch (error) {
+                Toast.error('Export failed: ' + error.message);
+            }
+        },
+
+        async exportAllBanks() {
+            try {
+                await Extension.sendToServiceWorker('EXPORT_QUESTION_BANKS', { bankIds: null });
+                Toast.success('All banks exported');
+            } catch (error) {
+                Toast.error('Export failed: ' + error.message);
+            }
+        },
+
+        async importBanks() {
+            $.banksFileInput?.click();
+        },
+
+        async handleBanksFileSelect(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+
+                if (data.schema !== 'lms-qa-question-bank') {
+                    Toast.error('Invalid question bank file');
+                    return;
+                }
+
+                const testerName = $.testerName?.value?.trim() || localStorage.getItem('lmsqa_tester_name') || '';
+
+                const response = await Extension.sendToServiceWorker('IMPORT_QUESTION_BANKS', {
+                    importData: data,
+                    testerName
+                });
+
+                if (response?.success) {
+                    Toast.success(`Imported ${response.imported} bank(s), skipped ${response.skipped}`);
+                    await this.loadBanksCount();
+                } else {
+                    Toast.error('Import failed: ' + (response?.error || 'Unknown error'));
+                }
+            } catch (error) {
+                Toast.error('Import failed: ' + error.message);
+            }
+
+            event.target.value = '';
+        },
+
+        hideModal() {
+            if ($.bankModal) $.bankModal.style.display = 'none';
+        },
+
+        formatDate(isoString) {
+            if (!isoString) return 'Unknown date';
+            try {
+                const date = new Date(isoString);
+                return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            } catch {
+                return 'Unknown date';
+            }
+        }
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // MESSAGE HANDLERS
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1944,6 +2459,27 @@
             } else {
                 State.setWorkflow(WORKFLOW.IDLE);
             }
+            Toast.error(payload.error || 'Extraction failed');
+        },
+
+        // Question Bank messages
+        [MSG.BANK_SAVED]: (payload) => {
+            Log.add('info', `Question bank saved: ${payload?.bank?.name}`);
+            QuestionBanks.loadBanksCount();
+        },
+
+        [MSG.BANK_UPDATED]: (payload) => {
+            Log.add('info', `Question bank updated: ${payload?.bank?.name}`);
+        },
+
+        [MSG.BANK_DELETED]: () => {
+            Log.add('info', 'Question bank deleted');
+            QuestionBanks.loadBanksCount();
+        },
+
+        [MSG.BANK_MERGED]: (payload) => {
+            Log.add('info', `Banks merged: +${payload?.questionsAdded} questions, ~${payload?.questionsUpdated} updated`);
+            QuestionBanks.loadBanksCount();
         }
     };
 
@@ -2047,6 +2583,27 @@
         $.btnExportRules?.addEventListener('click', () => Actions.exportRules());
         $.btnImportRules?.addEventListener('click', () => Actions.importRules());
         $.rulesFileInput?.addEventListener('change', (e) => Actions.handleRulesFileSelect(e));
+
+        // Question Banks
+        $.btnSaveToBank?.addEventListener('click', () => QuestionBanks.showSaveDialog());
+        $.btnViewBanks?.addEventListener('click', () => QuestionBanks.showBanksList());
+        $.btnExportBanks?.addEventListener('click', () => QuestionBanks.exportAllBanks());
+        $.btnImportBanks?.addEventListener('click', () => QuestionBanks.importBanks());
+        $.banksFileInput?.addEventListener('change', (e) => QuestionBanks.handleBanksFileSelect(e));
+
+        // Save bank dialog
+        $.btnConfirmSave?.addEventListener('click', () => QuestionBanks.saveToBank());
+        $.btnCancelSave?.addEventListener('click', () => QuestionBanks.hideSaveDialog());
+        $.btnCloseSaveDialog?.addEventListener('click', () => QuestionBanks.hideSaveDialog());
+
+        // Bank modal
+        $.btnCloseModal?.addEventListener('click', () => QuestionBanks.hideModal());
+        $.bankModal?.addEventListener('click', (e) => {
+            if (e.target === $.bankModal) QuestionBanks.hideModal();
+        });
+        $.saveBankDialog?.addEventListener('click', (e) => {
+            if (e.target === $.saveBankDialog) QuestionBanks.hideSaveDialog();
+        });
 
         // Export
         $.btnExportJson?.addEventListener('click', () => Actions.export('json'));
@@ -2175,6 +2732,12 @@
         await Actions.loadRulesCount();
 
         console.log('[LMS QA Popup v4.0] Initialized');
+        // Load question banks count
+        await QuestionBanks.loadBanksCount();
+
+        UI.setStatus(STATUS.READY);
+
+        console.log('[LMS QA Popup] Initialized');
     }
 
     // Start when DOM ready
