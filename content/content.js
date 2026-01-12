@@ -86,9 +86,10 @@
         }
 
         if (isSelectorInjected) {
-            // Already injected, just send activation command
+            // Already injected, send activation command
+            // (selector auto-activates on first load, but may have been deactivated)
             if (autoActivate) {
-                sendToPage('CMD_ACTIVATE_SELECTOR');
+                setTimeout(() => sendToPage('CMD_ACTIVATE_SELECTOR'), 10);
             }
             return true;
         }
@@ -110,11 +111,7 @@
             this.remove();
             isSelectorInjected = true;
             log.info('Element selector injected in ' + (isTopFrame ? 'top frame' : 'iframe'));
-
-            // Send activation command after script loads (runs in page context via message)
-            if (autoActivate) {
-                sendToPage('CMD_ACTIVATE_SELECTOR');
-            }
+            // Selector auto-activates on load, no need to send message
         };
 
         script.onerror = function() {
