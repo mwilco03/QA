@@ -314,6 +314,74 @@ window.iSpring || window.PresentationSettings
 3. **Sequencing Rules**: Cannot bypass SCORM 2004 sequencing rules defined in manifest
 4. **Multi-SCO**: Current implementation focuses on single-SCO courses
 
+---
+
+## Time Tracking Deep Dive
+
+### What We Control (Client-Side)
+
+| Element | SCORM 1.2 | SCORM 2004 | Format |
+|---------|-----------|------------|--------|
+| Session Time | `cmi.core.session_time` | `cmi.session_time` | SCORM 1.2: `HHHH:MM:SS.SS`, SCORM 2004: ISO 8601 `PT#H#M#S` |
+| Total Time | `cmi.core.total_time` | `cmi.total_time` | **READ-ONLY** - LMS calculates from session_time sum |
+| Exit | `cmi.core.exit` | `cmi.exit` | '', 'logout', 'suspend', 'time-out' |
+
+### Server-Side Tracking Reality
+
+Most enterprise LMS implement **dual tracking**:
+
+```
+Client Reports:    Initialize() ──────────────────────> Commit() with session_time=PT5M
+                       │                                       │
+Server Calculates:     │  timestamp_start                      │  timestamp_end
+                       └───────────────────────────────────────┘
+                              actual_elapsed_time = timestamp_end - timestamp_start
+```
+
+### LMS-Specific Validation Behaviors
+
+| LMS | Time Validation | Rejection Behavior |
+|-----|-----------------|-------------------|
+| **Cornerstone (CSOD)** | Server-side timestamp tracking | Compares actual vs reported; may flag or reject if mismatch > 30% |
+| **SAP SuccessFactors** | Minimum time requirements | Course admin can set min time; completion rejected if below |
+| **Workday Learning** | Audit logging | Flags short completions for compliance review; doesn't auto-reject |
+| **Moodle** | Usually trusts client | Most permissive; no server-side time check by default |
+| **SCORM Cloud** | Tracks both | Reports discrepancies in analytics but usually accepts |
+| **Blackboard** | Depends on config | Institution can enable time enforcement |
+| **Canvas LMS** | Trust client | No built-in time validation |
+| **Absorb LMS** | Server tracking | Uses login timestamps; may require min engagement |
+| **TalentLMS** | Basic tracking | Logs session start/end but rarely validates |
+
+### Strategies for Time-Sensitive LMS
+
+1. **Set Realistic Time** - Use course duration estimate (if known) rather than minimum
+2. **Exceed Minimum** - If course has 30-min requirement, set 35-40 min
+3. **Allow Real Time** - Some users wait for real time to elapse before triggering completion
+4. **Check Course Requirements** - Look for `completion_threshold`, `mastery_score`, time requirements in manifest
+
+### Time Format Reference
+
+```javascript
+// SCORM 1.2 format: HHHH:MM:SS.SS
+"0001:30:00.00"  // 1 hour 30 minutes
+
+// SCORM 2004 format: ISO 8601 duration
+"PT1H30M"        // 1 hour 30 minutes
+"PT90M"          // Also valid: 90 minutes
+"PT5M30S"        // 5 minutes 30 seconds
+
+// AICC format: HH:MM:SS
+"01:30:00"       // 1 hour 30 minutes
+```
+
+### Implementation Notes
+
+Session time is now configurable in the UI (SCORM Controls > Session Time). The value is:
+- Input in minutes (UI)
+- Converted to seconds internally
+- Formatted per standard when calling SetValue
+- Default: 5 minutes (300 seconds)
+
 ### Testing Notes
 
 To test compression handling:

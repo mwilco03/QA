@@ -210,7 +210,7 @@
             'search-container', 'search-input', 'search-count',
             'results-tabs', 'tab-panels', 'qa-list', 'apis-list', 'correct-list', 'logs-list',
             'qa-count', 'apis-count', 'correct-count', 'logs-count',
-            'scorm-controls', 'completion-status', 'completion-score',
+            'scorm-controls', 'completion-status', 'completion-score', 'session-time-minutes',
             'btn-test-api', 'btn-set-completion', 'btn-copy-all-correct',
             'btn-complete-objectives', 'btn-mark-slides', 'btn-full-completion',
             'element-picker', 'btn-auto-select', 'btn-element-selector',
@@ -1189,12 +1189,22 @@
             }
         },
 
+        /**
+         * Get session time in seconds from UI input
+         * @returns {number} Session time in seconds (default 300 = 5 min)
+         */
+        _getSessionTimeSeconds() {
+            const minutes = parseInt($.sessionTimeMinutes?.value || '5', 10);
+            return Math.max(60, minutes * 60); // Minimum 1 minute
+        },
+
         async setCompletion() {
             const status = $.completionStatus?.value || 'completed';
             const score = parseInt($.completionScore?.value || '100', 10);
+            const sessionTime = this._getSessionTimeSeconds();
 
             try {
-                await Extension.sendToContent('SET_COMPLETION', { status, score, apiIndex: 0 });
+                await Extension.sendToContent('SET_COMPLETION', { status, score, sessionTime, apiIndex: 0 });
                 Toast.info('Setting completion...');
             } catch (error) {
                 Toast.error('Failed to set completion');
@@ -1225,10 +1235,11 @@
         async fullCompletion() {
             const status = $.completionStatus?.value || 'passed';
             const score = parseInt($.completionScore?.value || '100', 10);
+            const sessionTime = this._getSessionTimeSeconds();
 
             try {
                 Toast.info('Running full course completion...');
-                await Extension.sendToContent('FULL_COMPLETION', { status, score, apiIndex: 0 });
+                await Extension.sendToContent('FULL_COMPLETION', { status, score, sessionTime, apiIndex: 0 });
             } catch (error) {
                 Toast.error('Failed to set completion');
             }

@@ -222,6 +222,7 @@
             sendToPage('CMD_SET_COMPLETION', {
                 status: message.status || 'completed',
                 score: message.score || 100,
+                sessionTime: message.sessionTime || 300,
                 apiIndex: message.apiIndex || 0
             });
             return { success: true };
@@ -450,21 +451,18 @@
         },
 
         [CMD.FULL_COMPLETION]: (message) => {
+            const payload = {
+                status: message.status || 'passed',
+                score: message.score || 100,
+                sessionTime: message.sessionTime || 300,
+                tool: message.tool || null,
+                apiIndex: message.apiIndex || 0
+            };
             if (!isInjected) {
                 injectValidator();
-                setTimeout(() => sendToPage('CMD_FULL_COMPLETION', {
-                    status: message.status || 'passed',
-                    score: message.score || 100,
-                    tool: message.tool || null,
-                    apiIndex: message.apiIndex || 0
-                }), 100);
+                setTimeout(() => sendToPage('CMD_FULL_COMPLETION', payload), 100);
             } else {
-                sendToPage('CMD_FULL_COMPLETION', {
-                    status: message.status || 'passed',
-                    score: message.score || 100,
-                    tool: message.tool || null,
-                    apiIndex: message.apiIndex || 0
-                });
+                sendToPage('CMD_FULL_COMPLETION', payload);
             }
             return { success: true };
         }
