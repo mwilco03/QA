@@ -1,18 +1,54 @@
 /**
- * LMS QA Validator - Content Script v5.0
- * Bridges page context (validator) with extension context (service worker)
- * Optimized: Removed Element Selector
+ * LMS QA Validator - Content Script v6.1
+ * VERBOSE LOGGING VERSION
+ * Bridges page context (validator/extractor) with extension context (service worker)
+ *
+ * Key improvements:
+ * - Waits for READY message before sending commands
+ * - Command queue for pending operations
+ * - Better frame/iframe detection
  */
 
 (function() {
     'use strict';
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // VERBOSE LOGGING
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const VERBOSE = true;
+
+    const log = {
+        info: (category, msg, data) => {
+            console.log(`%c[LMS-QA]%c [${category}] ${msg}`, 'color: #3b82f6; font-weight: bold', 'color: inherit', data || '');
+        },
+        warn: (category, msg, data) => {
+            console.warn(`%c[LMS-QA]%c [${category}] ${msg}`, 'color: #f59e0b; font-weight: bold', 'color: inherit', data || '');
+        },
+        error: (category, msg, data) => {
+            console.error(`%c[LMS-QA]%c [${category}] ${msg}`, 'color: #ef4444; font-weight: bold', 'color: inherit', data || '');
+        },
+        verbose: (category, msg, data) => {
+            if (VERBOSE) {
+                console.log(`%c[LMS-QA]%c [${category}] ${msg}`, 'color: #8b5cf6; font-weight: bold', 'color: #888', data || '');
+            }
+        },
+        table: (category, data) => {
+            console.log(`%c[LMS-QA]%c [${category}]`, 'color: #3b82f6; font-weight: bold', 'color: inherit');
+            console.table(data);
+        },
+        success: (category, msg, data) => {
+            console.log(`%c[LMS-QA]%c [${category}] ✓ ${msg}`, 'color: #22c55e; font-weight: bold', 'color: #22c55e', data || '');
+        }
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // CONSTANTS
     // ═══════════════════════════════════════════════════════════════════════════
 
     const PREFIX = 'LMS_QA_';
-    
+    const INJECT_TIMEOUT = 5000; // 5 seconds max wait for script ready
+
     const CMD = Object.freeze({
         SCAN: 'SCAN',
         TEST_API: 'TEST_API',
@@ -27,12 +63,10 @@
         GET_FRAME_INFO: 'GET_FRAME_INFO',
         SEED_EXTRACT: 'SEED_EXTRACT',
         DETECT_FRAMEWORK: 'DETECT_FRAMEWORK',
-        // Objectives and slides completion
         COMPLETE_OBJECTIVES: 'COMPLETE_OBJECTIVES',
         MARK_SLIDES: 'MARK_SLIDES',
         FULL_COMPLETION: 'FULL_COMPLETION',
         ESTIMATE_DURATION: 'ESTIMATE_DURATION',
-        // Tasks Extractor commands
         GET_EXTRACTED_DATA: 'GET_EXTRACTED_DATA',
         GET_QUESTIONS: 'GET_QUESTIONS',
         GET_CORRECT_ANSWERS: 'GET_CORRECT_ANSWERS'
@@ -42,72 +76,126 @@
     // STATE
     // ═══════════════════════════════════════════════════════════════════════════
 
-    let isInjected = false;
+    let isValidatorInjected = false;
+    let isValidatorReady = false;
     let isExtractorInjected = false;
-    // Use try/catch for cross-origin safety when checking window.top
+    let isExtractorReady = false;
+    let launchParams = null;
+
+    // Command queue - holds commands while waiting for scripts to be ready
+    const validatorCommandQueue = [];
+    const extractorCommandQueue = [];
+
+    // Frame info
     let isTopFrame = true;
     try {
         isTopFrame = window === window.top;
     } catch (e) {
-        // Cross-origin - assume we're in an iframe
-        isTopFrame = false;
+        isTopFrame = false; // Cross-origin iframe
     }
-    const frameId = Math.random().toString(36).substr(2, 9); // Unique ID for this frame
+
+    const frameId = Math.random().toString(36).substr(2, 9);
+    const frameType = isTopFrame ? 'TOP' : 'IFRAME';
+    const frameUrl = window.location.href;
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // LOGGING
+    // CMI5 LAUNCH PARAMETER DETECTION
     // ═══════════════════════════════════════════════════════════════════════════
 
-    const log = {
-        info: (msg) => console.log(`[LMS QA Content] ${msg}`),
-        error: (msg) => console.error(`[LMS QA Content] ${msg}`),
-        debug: (msg) => console.log(`[LMS QA Content] [DEBUG] ${msg}`)
-    };
+    function detectLaunchParams() {
+        try {
+            const url = new URL(window.location.href);
+            const params = {};
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // VALIDATOR INJECTION
-    // ═══════════════════════════════════════════════════════════════════════════
+            // cmi5 standard params
+            const cmi5Params = ['endpoint', 'fetch', 'actor', 'registration', 'activityId'];
+            cmi5Params.forEach(p => {
+                const val = url.searchParams.get(p);
+                if (val) params[p] = val;
+            });
 
-    function injectValidator() {
-        if (isInjected) {
-            sendToPage('CMD_GET_STATE');
-            return;
+            // Also check hash params (some LMS use hash)
+            if (url.hash) {
+                const hashParams = new URLSearchParams(url.hash.slice(1));
+                cmi5Params.forEach(p => {
+                    const val = hashParams.get(p);
+                    if (val && !params[p]) params[p] = val;
+                });
+            }
+
+            if (Object.keys(params).length > 0) {
+                log.info('CMI5', 'Launch parameters detected!', params);
+                launchParams = params;
+                sendToExtension('CMI5_LAUNCH_DETECTED', params);
+                return params;
+            }
+        } catch (e) {
+            log.error('CMI5', `Error detecting launch params: ${e.message}`);
         }
 
-        const script = document.createElement('script');
-        script.src = chrome.runtime.getURL('lib/lms-qa-validator.js');
-        
-        script.onload = function() {
-            this.remove();
-            isInjected = true;
-            log.info('Validator injected');
-        };
-        
-        script.onerror = function() {
-            log.error('Failed to inject validator');
-            sendToExtension('INJECTION_FAILED', { error: 'Failed to load validator script' });
-        };
-
-        (document.head || document.documentElement).appendChild(script);
+        return null;
     }
 
-    function injectTasksExtractor() {
-        if (isExtractorInjected) return;
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FRAME ANALYSIS
+    // ═══════════════════════════════════════════════════════════════════════════
 
-        const script = document.createElement('script');
-        script.src = chrome.runtime.getURL('lib/tasks-extractor.js');
-
-        script.onload = function() {
-            this.remove();
-            isExtractorInjected = true;
-            log.info('Tasks Extractor injected');
+    function analyzeFrame() {
+        const analysis = {
+            frameId,
+            frameType,
+            url: frameUrl,
+            title: document.title || '(no title)',
+            iframes: [],
+            scripts: [],
+            globals: [],
+            forms: 0
         };
 
-        script.onerror = function() {
-            log.error('Failed to inject Tasks Extractor');
-        };
+        // Count iframes
+        const iframes = document.querySelectorAll('iframe');
+        iframes.forEach((iframe, i) => {
+            try {
+                analysis.iframes.push({
+                    index: i,
+                    src: iframe.src || '(no src)',
+                    id: iframe.id || '(no id)',
+                    name: iframe.name || '(no name)',
+                    visible: iframe.offsetParent !== null
+                });
+            } catch (e) {}
+        });
 
-        (document.head || document.documentElement).appendChild(script);
+        // Sample scripts
+        const scripts = document.querySelectorAll('script[src]');
+        scripts.forEach(s => {
+            const src = s.src || s.getAttribute('src');
+            if (src) analysis.scripts.push(src);
+        });
+
+        // Check for known globals
+        const globalChecks = ['API', 'API_1484_11', 'ADL', 'DS', 'cp', 'trivantis', 'iSpring', 'g_slideData'];
+        globalChecks.forEach(g => {
+            try {
+                if (window[g]) analysis.globals.push(g);
+            } catch (e) {}
+        });
+
+        // Check parent/top for SCORM API
+        try {
+            if (window.parent && window.parent !== window) {
+                ['API', 'API_1484_11'].forEach(g => {
+                    try {
+                        if (window.parent[g]) analysis.globals.push(`parent.${g}`);
+                    } catch (e) {}
+                });
+            }
+        } catch (e) {}
+
+        // Count forms
+        analysis.forms = document.querySelectorAll('form, select, input[type="radio"], input[type="checkbox"]').length;
+
+        return analysis;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -115,71 +203,233 @@
     // ═══════════════════════════════════════════════════════════════════════════
 
     function sendToPage(command, payload = {}) {
-        window.postMessage({
+        const msg = {
             type: `${PREFIX}${command}`,
-            payload
-        }, '*');
+            payload,
+            frameId,
+            timestamp: Date.now()
+        };
+        log.verbose('MSG→PAGE', `${command}`, payload);
+        window.postMessage(msg, '*');
     }
 
     function sendToExtension(type, payload = {}) {
-        chrome.runtime.sendMessage({
+        const msg = {
             type,
             payload,
-            url: window.location.href
-        }, (response) => {
-            if (chrome.runtime.lastError) {
-                log.debug(`Message error: ${chrome.runtime.lastError.message}`);
-            }
-        });
+            frameId,
+            frameType,
+            url: frameUrl
+        };
+        log.verbose('MSG→EXT', `${type}`, payload);
+
+        try {
+            chrome.runtime.sendMessage(msg, (response) => {
+                if (chrome.runtime.lastError) {
+                    log.warn('MSG→EXT', `Error: ${chrome.runtime.lastError.message}`);
+                } else if (response) {
+                    log.verbose('MSG←EXT', 'Response received', response);
+                }
+            });
+        } catch (e) {
+            log.error('MSG→EXT', `Failed to send: ${e.message}`);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // PAGE MESSAGE HANDLER
-    // Forwards messages from validator (page context) to extension
+    // SCRIPT INJECTION
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    function injectScript(name, src) {
+        return new Promise((resolve, reject) => {
+            log.info('INJECT', `Injecting ${name}...`);
+
+            const script = document.createElement('script');
+            script.src = src;
+
+            const timeout = setTimeout(() => {
+                reject(new Error(`Timeout waiting for ${name} to load`));
+            }, INJECT_TIMEOUT);
+
+            script.onload = function() {
+                clearTimeout(timeout);
+                this.remove();
+                log.success('INJECT', `${name} script loaded`);
+                resolve();
+            };
+
+            script.onerror = function(e) {
+                clearTimeout(timeout);
+                log.error('INJECT', `Failed to inject ${name}`, e);
+                reject(new Error(`Failed to load ${name}`));
+            };
+
+            (document.head || document.documentElement).appendChild(script);
+        });
+    }
+
+    async function injectValidator() {
+        if (isValidatorInjected) {
+            log.verbose('INJECT', 'Validator already injected');
+            return isValidatorReady;
+        }
+
+        try {
+            await injectScript('lms-qa-validator.js', chrome.runtime.getURL('lib/lms-qa-validator.js'));
+            isValidatorInjected = true;
+            log.info('INJECT', 'Validator script injected, waiting for READY...');
+            // READY message will be received via page message listener
+            return true;
+        } catch (e) {
+            log.error('INJECT', `Validator injection failed: ${e.message}`);
+            return false;
+        }
+    }
+
+    async function injectTasksExtractor() {
+        if (isExtractorInjected) {
+            log.verbose('INJECT', 'TasksExtractor already injected');
+            return isExtractorReady;
+        }
+
+        try {
+            await injectScript('tasks-extractor.js', chrome.runtime.getURL('lib/tasks-extractor.js'));
+            isExtractorInjected = true;
+            log.info('INJECT', 'TasksExtractor script injected, waiting for READY...');
+            return true;
+        } catch (e) {
+            log.error('INJECT', `TasksExtractor injection failed: ${e.message}`);
+            return false;
+        }
+    }
+
+    // Process queued commands when script becomes ready
+    function processValidatorQueue() {
+        log.info('QUEUE', `Processing ${validatorCommandQueue.length} queued validator commands`);
+        while (validatorCommandQueue.length > 0) {
+            const { command, payload } = validatorCommandQueue.shift();
+            log.verbose('QUEUE', `Sending queued command: ${command}`);
+            sendToPage(command, payload);
+        }
+    }
+
+    function processExtractorQueue() {
+        log.info('QUEUE', `Processing ${extractorCommandQueue.length} queued extractor commands`);
+        while (extractorCommandQueue.length > 0) {
+            const { command, payload } = extractorCommandQueue.shift();
+            log.verbose('QUEUE', `Sending queued command: ${command}`);
+            sendToPage(command, payload);
+        }
+    }
+
+    // Send command to validator (with queueing if not ready)
+    async function sendValidatorCommand(command, payload = {}) {
+        if (isValidatorReady) {
+            sendToPage(command, payload);
+        } else if (isValidatorInjected) {
+            // Script injected but not ready yet - queue the command
+            log.verbose('QUEUE', `Queueing validator command: ${command}`);
+            validatorCommandQueue.push({ command, payload });
+        } else {
+            // Need to inject first
+            log.info('INJECT', `Injecting validator for command: ${command}`);
+            validatorCommandQueue.push({ command, payload });
+            await injectValidator();
+        }
+    }
+
+    // Send command to extractor (with queueing if not ready)
+    async function sendExtractorCommand(command, payload = {}) {
+        if (isExtractorReady) {
+            sendToPage(command, payload);
+        } else if (isExtractorInjected) {
+            log.verbose('QUEUE', `Queueing extractor command: ${command}`);
+            extractorCommandQueue.push({ command, payload });
+        } else {
+            log.info('INJECT', `Injecting extractor for command: ${command}`);
+            extractorCommandQueue.push({ command, payload });
+            await injectTasksExtractor();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PAGE MESSAGE HANDLER (from validator/extractor scripts)
     // ═══════════════════════════════════════════════════════════════════════════
 
     window.addEventListener('message', (event) => {
         if (event.source !== window) return;
         if (!event.data?.type?.startsWith(PREFIX)) return;
 
-        const { type, payload, timestamp } = event.data;
+        const { type, payload } = event.data;
         const messageType = type.replace(PREFIX, '');
 
         // Skip command messages (those go TO the page, not FROM it)
         if (messageType.startsWith('CMD_')) return;
 
-        log.debug(`From page: ${messageType}`);
+        log.info('MSG←PAGE', messageType, payload);
+
+        // Handle READY messages specially
+        if (messageType === 'READY') {
+            log.success('READY', 'Validator is ready!', payload);
+            isValidatorReady = true;
+            processValidatorQueue();
+        }
+
+        if (messageType === 'EXTRACTOR_READY') {
+            log.success('READY', 'TasksExtractor is ready!', payload);
+            isExtractorReady = true;
+            processExtractorQueue();
+        }
+
+        // Forward all messages to extension
         sendToExtension(messageType, payload);
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // EXTENSION MESSAGE HANDLER
-    // Handles commands from popup/service worker
+    // EXTENSION MESSAGE HANDLER (from popup/service worker)
     // ═══════════════════════════════════════════════════════════════════════════
 
     const commandHandlers = {
-        [CMD.INJECT]: () => {
-            injectValidator();
+        [CMD.PING]: () => {
+            return {
+                success: true,
+                frameId,
+                frameType,
+                validatorInjected: isValidatorInjected,
+                validatorReady: isValidatorReady,
+                extractorInjected: isExtractorInjected,
+                extractorReady: isExtractorReady,
+                launchParams
+            };
+        },
+
+        [CMD.SCAN]: async () => {
+            log.info('CMD', '▶ SCAN requested');
+            await sendValidatorCommand('CMD_SCAN');
+            return { success: true, message: 'Scan command sent' };
+        },
+
+        [CMD.FULL_COMPLETION]: async (message) => {
+            log.info('CMD', '▶ FULL_COMPLETION requested', message);
+            const payload = {
+                status: message.status || 'passed',
+                score: message.score || 100,
+                sessionTime: message.sessionTime || 300,
+                launchParams
+            };
+            await sendValidatorCommand('CMD_FULL_COMPLETION', payload);
+            return { success: true, message: 'Full completion command sent' };
+        },
+
+        [CMD.TEST_API]: async (message) => {
+            log.info('CMD', '▶ TEST_API requested');
+            await sendValidatorCommand('CMD_TEST_API', { apiIndex: message.apiIndex || 0 });
             return { success: true };
         },
 
-        [CMD.SCAN]: () => {
-            if (!isInjected) {
-                injectValidator();
-                setTimeout(() => sendToPage('CMD_SCAN'), 100);
-            } else {
-                sendToPage('CMD_SCAN');
-            }
-            return { success: true };
-        },
-
-        [CMD.TEST_API]: (message) => {
-            sendToPage('CMD_TEST_API', { apiIndex: message.apiIndex || 0 });
-            return { success: true };
-        },
-
-        [CMD.SET_COMPLETION]: (message) => {
-            sendToPage('CMD_SET_COMPLETION', {
+        [CMD.SET_COMPLETION]: async (message) => {
+            log.info('CMD', '▶ SET_COMPLETION requested', message);
+            await sendValidatorCommand('CMD_SET_COMPLETION', {
                 status: message.status || 'completed',
                 score: message.score || 100,
                 sessionTime: message.sessionTime || 300,
@@ -188,242 +438,115 @@
             return { success: true };
         },
 
-        [CMD.EXPORT]: (message) => {
-            sendToPage('CMD_EXPORT', { format: message.format || 'json' });
+        [CMD.EXPORT]: async (message) => {
+            log.info('CMD', '▶ EXPORT requested', message.format);
+            await sendValidatorCommand('CMD_EXPORT', { format: message.format || 'json' });
             return { success: true };
         },
 
-        [CMD.GET_CMI_DATA]: () => {
-            sendToPage('CMD_GET_CMI_DATA');
+        [CMD.AUTO_SELECT]: async () => {
+            log.info('CMD', '▶ AUTO_SELECT requested');
+            await sendValidatorCommand('CMD_AUTO_SELECT');
             return { success: true };
-        },
-
-        [CMD.GET_STATE]: () => {
-            sendToPage('CMD_GET_STATE');
-            return { success: true };
-        },
-
-        [CMD.AUTO_SELECT]: () => {
-            sendToPage('CMD_AUTO_SELECT');
-            return { success: true };
-        },
-
-        [CMD.PING]: () => {
-            return { success: true, injected: isInjected };
-        },
-
-        [CMD.DETECT_APIS]: () => {
-            if (!isInjected) {
-                injectValidator();
-                setTimeout(() => sendToPage('CMD_DETECT_APIS'), 100);
-            } else {
-                sendToPage('CMD_DETECT_APIS');
-            }
-            return { success: true };
-        },
-
-        [CMD.SEED_EXTRACT]: (message) => {
-            // Seed extraction - find all Q&A based on selected text
-            if (!isInjected) {
-                injectValidator();
-                setTimeout(() => sendToPage('CMD_SEED_EXTRACT', { seedText: message.seedText }), 100);
-            } else {
-                sendToPage('CMD_SEED_EXTRACT', { seedText: message.seedText });
-            }
-            return { success: true };
-        },
-
-        [CMD.GET_FRAME_INFO]: () => {
-            // Gather info about this frame and any child iframes
-            const iframes = document.querySelectorAll('iframe');
-            const frameInfo = {
-                frameId,
-                isTopFrame,
-                url: window.location.href,
-                title: document.title,
-                hasContent: document.body?.innerText?.length > 100,
-                childFrames: []
-            };
-
-            iframes.forEach((iframe, index) => {
-                try {
-                    const iframeSrc = iframe.src || iframe.getAttribute('src') || '';
-                    const iframeName = iframe.name || iframe.id || `iframe-${index}`;
-                    let canAccess = false;
-
-                    // Try to access iframe document (will fail for cross-origin)
-                    try {
-                        canAccess = !!iframe.contentDocument;
-                    } catch (e) {
-                        canAccess = false;
-                    }
-
-                    frameInfo.childFrames.push({
-                        index,
-                        name: iframeName,
-                        src: iframeSrc,
-                        canAccess,
-                        visible: iframe.offsetParent !== null
-                    });
-                } catch (e) {
-                    // Ignore errors
-                }
-            });
-
-            return frameInfo;
         },
 
         [CMD.DETECT_FRAMEWORK]: () => {
-            // Quick framework detection without full scan
-            // Check for known framework signatures in the DOM
+            log.info('CMD', '▶ DETECT_FRAMEWORK requested');
+
             const detection = {
                 framework: null,
                 apis: [],
-                potentialQA: 0
+                potentialQA: 0,
+                frameId,
+                frameType,
+                url: frameUrl
             };
 
             try {
-                // Storyline detection
-                if (window.DS || window.g_slideData || window.JSON_PLAYER ||
-                    document.querySelector('#slide-window, .slide-container, [data-slide-id]')) {
-                    detection.framework = 'storyline';
-                    detection.potentialQA = document.querySelectorAll('[data-acc-text], .slide-object').length;
-                }
-                // Rise 360 detection
-                else if (document.querySelector('[data-ba-component]') ||
-                         document.querySelector('.blocks-container')) {
-                    detection.framework = 'rise';
-                    detection.potentialQA = document.querySelectorAll('[data-ba-component="KnowledgeBlock"], .block-quiz').length;
-                }
-                // Captivate detection
-                else if (window.cp || window.cpAPIInterface ||
-                         document.querySelector('[data-cpstate], #cpDocument')) {
-                    detection.framework = 'captivate';
-                }
-                // Lectora detection
-                else if (window.trivantis || window.TrivantisCore ||
-                         document.querySelector('[data-trivantis], .trivantis-content')) {
-                    detection.framework = 'lectora';
-                }
-                // iSpring detection
-                else if (window.iSpring || window.PresentationSettings ||
-                         document.querySelector('#ispringPlayerContainer, .ispring-player')) {
-                    detection.framework = 'ispring';
-                }
+                // Check globals
+                if (window.DS || window.g_slideData) detection.framework = 'storyline';
+                else if (window.cp || window.cpAPIInterface) detection.framework = 'captivate';
+                else if (window.trivantis) detection.framework = 'lectora';
+                else if (window.iSpring) detection.framework = 'ispring';
+                else if (document.querySelector('[data-ba-component]')) detection.framework = 'rise';
 
-                // Check for SCORM/xAPI APIs
-                const apiLocations = ['API', 'API_1484_11', 'API_ADAPTER'];
-                for (const name of apiLocations) {
+                // Check APIs in various locations
+                const checkApi = (win, prefix) => {
                     try {
-                        if (window[name] || window.parent?.[name] || window.top?.[name]) {
-                            detection.apis.push({ type: 'SCORM', location: name });
-                            break;
-                        }
-                    } catch (e) {
-                        // Cross-origin access denied - skip this location
-                    }
-                }
+                        ['API', 'API_1484_11', 'API_ADAPTER'].forEach(name => {
+                            if (win[name]) {
+                                detection.apis.push({ type: 'SCORM', location: name, where: prefix });
+                            }
+                        });
+                        if (win.ADL) detection.apis.push({ type: 'xAPI', location: 'ADL', where: prefix });
+                    } catch (e) {}
+                };
 
-                // Check for xAPI
-                if (window.ADL || document.querySelector('script[src*="xapi"]')) {
-                    detection.apis.push({ type: 'xAPI', location: 'ADL' });
-                }
+                checkApi(window, 'window');
+                try { if (window.parent !== window) checkApi(window.parent, 'parent'); } catch (e) {}
+                try { if (window.top !== window) checkApi(window.top, 'top'); } catch (e) {}
+                try { if (window.opener) checkApi(window.opener, 'opener'); } catch (e) {}
+
+                detection.potentialQA = document.querySelectorAll('select, input[type="radio"], input[type="checkbox"]').length;
+
+                log.info('DETECT', 'Framework detection complete', detection);
+
+                // Also report to extension
+                sendToExtension('FRAMEWORK_DETECTED', detection);
             } catch (e) {
-                log.debug('Framework detection error: ' + e.message);
+                log.error('DETECT', 'Detection error', e.message);
             }
 
             return detection;
         },
 
-        [CMD.COMPLETE_OBJECTIVES]: (message) => {
-            if (!isInjected) {
-                injectValidator();
-                setTimeout(() => sendToPage('CMD_COMPLETE_OBJECTIVES', {
-                    status: message.status || 'passed',
-                    score: message.score || 100,
-                    apiIndex: message.apiIndex || 0
-                }), 100);
-            } else {
-                sendToPage('CMD_COMPLETE_OBJECTIVES', {
-                    status: message.status || 'passed',
-                    score: message.score || 100,
-                    apiIndex: message.apiIndex || 0
-                });
-            }
+        [CMD.GET_FRAME_INFO]: () => {
+            const analysis = analyzeFrame();
+            log.table('FRAME', analysis);
+            return analysis;
+        },
+
+        [CMD.GET_EXTRACTED_DATA]: async () => {
+            log.info('CMD', '▶ GET_EXTRACTED_DATA requested');
+            await sendExtractorCommand('CMD_GET_EXTRACTED_DATA');
             return { success: true };
         },
 
-        [CMD.MARK_SLIDES]: (message) => {
-            if (!isInjected) {
-                injectValidator();
-                setTimeout(() => sendToPage('CMD_MARK_SLIDES', {
-                    tool: message.tool || null,
-                    apiIndex: message.apiIndex || 0
-                }), 100);
-            } else {
-                sendToPage('CMD_MARK_SLIDES', {
-                    tool: message.tool || null,
-                    apiIndex: message.apiIndex || 0
-                });
-            }
+        [CMD.INJECT]: async () => {
+            log.info('CMD', '▶ INJECT (validator) requested');
+            await injectValidator();
+            return { success: true, validatorReady: isValidatorReady };
+        },
+
+        [CMD.GET_STATE]: async () => {
+            log.info('CMD', '▶ GET_STATE requested');
+            await sendValidatorCommand('CMD_GET_STATE');
             return { success: true };
         },
 
-        [CMD.FULL_COMPLETION]: (message) => {
-            const payload = {
-                status: message.status || 'passed',
-                score: message.score || 100,
-                sessionTime: message.sessionTime || 300,
-                tool: message.tool || null,
-                apiIndex: message.apiIndex || 0
-            };
-            if (!isInjected) {
-                injectValidator();
-                setTimeout(() => sendToPage('CMD_FULL_COMPLETION', payload), 100);
-            } else {
-                sendToPage('CMD_FULL_COMPLETION', payload);
-            }
+        [CMD.GET_CMI_DATA]: async () => {
+            log.info('CMD', '▶ GET_CMI_DATA requested');
+            await sendValidatorCommand('CMD_GET_CMI_DATA');
             return { success: true };
         },
 
-        [CMD.ESTIMATE_DURATION]: (message) => {
-            if (!isInjected) {
-                injectValidator();
-                setTimeout(() => sendToPage('CMD_ESTIMATE_DURATION', {}), 100);
-            } else {
-                sendToPage('CMD_ESTIMATE_DURATION', {});
-            }
+        [CMD.DETECT_APIS]: async () => {
+            log.info('CMD', '▶ DETECT_APIS requested');
+            await sendValidatorCommand('CMD_DETECT_APIS');
             return { success: true };
         },
 
-        // Tasks Extractor commands
-        [CMD.GET_EXTRACTED_DATA]: () => {
-            if (!isExtractorInjected) {
-                injectTasksExtractor();
-                setTimeout(() => sendToPage('CMD_GET_EXTRACTED_DATA'), 100);
-            } else {
-                sendToPage('CMD_GET_EXTRACTED_DATA');
-            }
+        [CMD.COMPLETE_OBJECTIVES]: async (message) => {
+            log.info('CMD', '▶ COMPLETE_OBJECTIVES requested');
+            const payload = { status: message.status || 'passed', score: message.score || 100 };
+            await sendValidatorCommand('CMD_COMPLETE_OBJECTIVES', payload);
             return { success: true };
         },
 
-        [CMD.GET_QUESTIONS]: () => {
-            if (!isExtractorInjected) {
-                injectTasksExtractor();
-                setTimeout(() => sendToPage('CMD_GET_QUESTIONS'), 100);
-            } else {
-                sendToPage('CMD_GET_QUESTIONS');
-            }
-            return { success: true };
-        },
-
-        [CMD.GET_CORRECT_ANSWERS]: () => {
-            if (!isExtractorInjected) {
-                injectTasksExtractor();
-                setTimeout(() => sendToPage('CMD_GET_CORRECT_ANSWERS'), 100);
-            } else {
-                sendToPage('CMD_GET_CORRECT_ANSWERS');
-            }
+        [CMD.MARK_SLIDES]: async (message) => {
+            log.info('CMD', '▶ MARK_SLIDES requested');
+            const payload = { tool: message.tool || null };
+            await sendValidatorCommand('CMD_MARK_SLIDES', payload);
             return { success: true };
         }
     };
@@ -431,10 +554,28 @@
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!message?.type) return;
 
+        log.info('MSG←EXT', `Command: ${message.type}`, message);
+
         const handler = commandHandlers[message.type];
         if (handler) {
-            const response = handler(message);
-            sendResponse(response);
+            // Handle async handlers
+            const result = handler(message);
+            if (result instanceof Promise) {
+                result.then(response => {
+                    log.verbose('MSG→EXT', 'Async response', response);
+                    sendResponse(response);
+                }).catch(err => {
+                    log.error('CMD', `Handler error: ${err.message}`);
+                    sendResponse({ success: false, error: err.message });
+                });
+                return true; // Keep channel open
+            } else {
+                log.verbose('MSG→EXT', 'Sync response', result);
+                sendResponse(result);
+            }
+        } else {
+            log.warn('MSG←EXT', `Unknown command: ${message.type}`);
+            sendResponse({ success: false, error: `Unknown command: ${message.type}` });
         }
 
         return true;
@@ -444,29 +585,50 @@
     // INITIALIZATION
     // ═══════════════════════════════════════════════════════════════════════════
 
-    log.info(`Content script loaded (${isTopFrame ? 'TOP FRAME' : 'iframe'}, id: ${frameId})`);
+    console.log('%c[LMS-QA] Content Script v6.1 Loaded', 'color: #22c55e; font-weight: bold; font-size: 14px');
 
-    // Auto-inject Tasks Extractor to capture network traffic early
-    // This runs in the page context to intercept fetch/XHR
-    injectTasksExtractor();
+    const frameAnalysis = analyzeFrame();
+    log.info('INIT', `Frame: ${frameType} | ID: ${frameId}`);
+    log.info('INIT', `URL: ${frameUrl.substring(0, 100)}${frameUrl.length > 100 ? '...' : ''}`);
+    log.info('INIT', `iFrames: ${frameAnalysis.iframes.length} | Scripts: ${frameAnalysis.scripts.length} | Forms: ${frameAnalysis.forms}`);
 
-    // Report window relationship for better child/popup window detection
-    try {
-        const hasOpener = !!window.opener;
-        const isPopup = window.opener && window.opener !== window;
-        const windowName = window.name || '';
-
-        if (hasOpener || isPopup || windowName) {
-            sendToExtension('WINDOW_INFO', {
-                hasOpener,
-                isPopup,
-                windowName,
-                url: window.location.href
-            });
-            log.info(`Window info: opener=${hasOpener}, popup=${isPopup}, name=${windowName}`);
-        }
-    } catch (e) {
-        // Cross-origin - can't access opener
+    if (frameAnalysis.globals.length > 0) {
+        log.success('INIT', `Globals found: ${frameAnalysis.globals.join(', ')}`);
     }
+
+    if (frameAnalysis.scripts.length > 0) {
+        log.verbose('SCRIPTS', `${frameAnalysis.scripts.length} external scripts found`);
+        // Log first 5 scripts
+        frameAnalysis.scripts.slice(0, 5).forEach(s => {
+            const shortUrl = s.length > 80 ? '...' + s.substring(s.length - 77) : s;
+            log.verbose('SCRIPTS', `  ${shortUrl}`);
+        });
+    }
+
+    // Detect cmi5 launch params
+    detectLaunchParams();
+
+    // Auto-inject Tasks Extractor for network interception (in all frames)
+    log.info('INIT', 'Auto-injecting TasksExtractor...');
+    injectTasksExtractor().catch(e => {
+        log.warn('INIT', `TasksExtractor auto-inject failed: ${e.message}`);
+    });
+
+    // Report to extension
+    sendToExtension('CONTENT_SCRIPT_READY', {
+        frameId,
+        frameType,
+        url: frameUrl,
+        iframeCount: frameAnalysis.iframes.length,
+        globals: frameAnalysis.globals,
+        launchParams
+    });
+
+    // Log summary
+    log.info('INIT', '═══════════════════════════════════════════════════════════════');
+    log.info('INIT', 'Content script ready. Debug commands:');
+    log.info('INIT', '  • Check validator: window.__LMS_QA_INJECTED__');
+    log.info('INIT', '  • Check extractor: window.__LMS_QA_EXTRACTOR__');
+    log.info('INIT', '═══════════════════════════════════════════════════════════════');
 
 })();

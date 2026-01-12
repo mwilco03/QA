@@ -446,26 +446,31 @@
         },
 
         async sendToContent(type, payload = {}) {
+            console.log(`[Popup] Sending to content: ${type}`, payload);
             try {
                 const tab = await this.getActiveTab();
                 if (!tab?.id) throw new Error('No active tab');
+                console.log(`[Popup] Target tab: ${tab.id} - ${tab.url?.substring(0, 50)}...`);
 
                 return new Promise((resolve, reject) => {
                     chrome.tabs.sendMessage(tab.id, { type, ...payload }, response => {
                         if (chrome.runtime.lastError) {
+                            console.error(`[Popup] Send error: ${chrome.runtime.lastError.message}`);
                             reject(new Error(chrome.runtime.lastError.message));
                         } else {
+                            console.log(`[Popup] Response from content:`, response);
                             resolve(response);
                         }
                     });
                 });
             } catch (error) {
-                console.error('Send error:', error);
+                console.error('[Popup] Send error:', error);
                 throw error;
             }
         },
 
         async sendToServiceWorker(type, payload = {}) {
+            console.log(`[Popup] Sending to SW: ${type}`, payload);
             return chrome.runtime.sendMessage({ type, ...payload });
         }
     };
