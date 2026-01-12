@@ -393,3 +393,117 @@ Utils.detectCompression(suspendData) // Returns: 'gzip'|'lzw'|'base64'|null
 const result = await Utils.decompressSuspendData(suspendData);
 console.log(result.data, result.compressed, result.type);
 ```
+
+---
+
+## Network Request Interception
+
+### Purpose
+
+For custom LMS implementations that don't use standard SCORM APIs, we intercept
+XMLHttpRequest, fetch(), and sendBeacon() to detect completion-related endpoints.
+
+### Auto-Detection Patterns
+
+**URL Patterns** (triggers capture):
+```
+/complet/i, /finish/i, /progress/i, /status/i, /track/i,
+/score/i, /grade/i, /submit/i, /save/i, /commit/i,
+/lesson.*status/i, /course.*status/i, /scorm/i, /xapi/i,
+/lrs/i, /statements/i, /tincan/i, /cmi/i, /aicc/i,
+/putparam/i, /setvalue/i, /terminate/i, /exitau/i
+```
+
+**Payload Patterns** (in request body):
+```
+/passed|completed|failed|incomplete/i
+/lesson_status|completion_status|success_status/i
+/score|raw|scaled|min|max/i
+/cmi\./i, /adl\./i
+/"verb".*"completed"/i  (xAPI)
+```
+
+### How It Works
+
+1. **Auto-start on injection** - NetworkInterceptor starts automatically
+2. **Captures all requests** - Stores method, URL, body, headers, response
+3. **Flags completion candidates** - Based on URL and payload patterns
+4. **Scores endpoints** - Higher confidence for SCORM/xAPI patterns
+5. **Enables replay** - Can replay successful completion requests
+
+### Usage via Console
+
+```javascript
+// Get analysis of captured requests
+LMS_QA.network.analyze()
+// Returns: { totalRequests, completionCandidates, endpoints, bestEndpoint, patterns }
+
+// Get all captured completion requests
+LMS_QA.network.getCompletionRequests()
+// Returns: [{ type, method, url, body, headers, status, response }]
+
+// Find the most likely completion endpoint
+LMS_QA.network.findEndpoint()
+// Returns: { url, method, body, headers, confidence }
+
+// Create a modified completion request
+LMS_QA.network.createCompletion({ status: 'passed', score: 100 })
+// Returns: { success, endpoint, method, body }
+
+// Replay a request with modifications
+const req = LMS_QA.network.findEndpoint();
+LMS_QA.network.replay(req, { bodyModifications: { status: 'passed' }})
+```
+
+### Endpoint Classification
+
+| Type | Detection | Examples |
+|------|-----------|----------|
+| SCORM | URL/body contains `scorm`, `cmi.`, `LMSSetValue` | `/api/scorm/setvalue` |
+| xAPI | URL contains `xapi`, `lrs`, `statements` | `/lrs/statements` |
+| Custom | Completion keywords without SCORM/xAPI markers | `/api/course/complete` |
+
+### Confidence Scoring
+
+```
++3: URL contains 'complet', 'scorm', 'xapi', 'lrs'
++2: URL contains 'status', 'commit', 'terminate'
++3: Body contains 'passed', 'completed', 'cmi.'
++2: Body contains 'score', 'verb' (xAPI)
++2: Response status 200 or 204
+```
+
+### Common Custom LMS Patterns
+
+**JSON API style:**
+```javascript
+POST /api/course/progress
+{ "courseId": "123", "status": "completed", "score": 100 }
+```
+
+**Form-encoded:**
+```
+POST /lms/submit.php
+lesson_status=passed&score=100&session_time=00:05:00
+```
+
+**Query params:**
+```
+GET /complete?course=123&status=c&score=100
+```
+
+### Replay Strategy
+
+1. Let user naturally progress through some content
+2. Analyze captured requests: `LMS_QA.network.analyze()`
+3. Find best endpoint: `LMS_QA.network.findEndpoint()`
+4. Create completion request: `LMS_QA.network.createCompletion({...})`
+5. Replay with desired values: `LMS_QA.network.replay(req, mods)`
+
+### Limitations
+
+1. **CORS** - Cross-origin requests may not capture response body
+2. **Encryption** - TLS payloads visible, but custom encryption opaque
+3. **CSRF tokens** - May need to capture and replay tokens
+4. **Session cookies** - Replay includes cookies via `credentials: 'include'`
+5. **Timing** - Some LMS validate request timing/sequence
