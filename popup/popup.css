@@ -831,6 +831,23 @@ body {
     border-bottom: 1px solid var(--color-border);
 }
 
+.quick-actions .btn.full-width {
+    margin-bottom: var(--space-sm);
+}
+
+.quick-actions #btn-element-selector {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    padding: 4px 8px;
+}
+
+.quick-actions #btn-element-selector:hover {
+    color: var(--color-text);
+}
+
 /* Export Actions */
 .export-actions {
     padding: var(--space-md) var(--space-lg);
