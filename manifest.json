@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "LMS QA Validator",
-    "version": "4.0.0",
+    "version": "5.0.0",
     "description": "Extract Q&A content from LMS courses, detect SCORM/xAPI APIs, and validate eLearning content",
     
     "permissions": [
@@ -44,8 +44,7 @@
     "web_accessible_resources": [
         {
             "resources": [
-                "lib/lms-qa-validator.js",
-                "lib/element-selector.js"
+                "lib/lms-qa-validator.js"
             ],
             "matches": ["<all_urls>"]
         }

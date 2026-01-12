@@ -1,8 +1,7 @@
 /**
- * LMS QA Validator - Content Script v3.0
+ * LMS QA Validator - Content Script v5.0
  * Bridges page context (validator) with extension context (service worker)
- * 
- * @fileoverview Content script for message bridging and validator injection
+ * Optimized: Removed Element Selector
  */
 
 (function() {
@@ -24,9 +23,6 @@
         AUTO_SELECT: 'AUTO_SELECT',
         INJECT: 'INJECT',
         PING: 'PING',
-        ACTIVATE_SELECTOR: 'ACTIVATE_SELECTOR',
-        DEACTIVATE_SELECTOR: 'DEACTIVATE_SELECTOR',
-        APPLY_SELECTOR_RULE: 'APPLY_SELECTOR_RULE',
         DETECT_APIS: 'DETECT_APIS',
         GET_FRAME_INFO: 'GET_FRAME_INFO',
         SEED_EXTRACT: 'SEED_EXTRACT',
@@ -43,7 +39,6 @@
     // ═══════════════════════════════════════════════════════════════════════════
 
     let isInjected = false;
-    let isSelectorInjected = false;
     // Use try/catch for cross-origin safety when checking window.top
     let isTopFrame = true;
     try {
@@ -91,51 +86,6 @@
         (document.head || document.documentElement).appendChild(script);
     }
 
-    function injectSelector(autoActivate = true, forceInject = false) {
-        // Only inject in top frame unless explicitly forced (for iframe targeting)
-        if (!isTopFrame && !forceInject) {
-            log.debug('Skipping selector injection - not top frame');
-            return false;
-        }
-
-        if (isSelectorInjected) {
-            // Already injected, send activation command
-            // (selector auto-activates on first load, but may have been deactivated)
-            if (autoActivate) {
-                setTimeout(() => sendToPage('CMD_ACTIVATE_SELECTOR'), 10);
-            }
-            return true;
-        }
-
-        // Check if selector panel already exists (handles page reload cases)
-        if (document.getElementById('lms-qa-selector-panel')) {
-            log.debug('Selector panel already exists in DOM');
-            isSelectorInjected = true;
-            if (autoActivate) {
-                sendToPage('CMD_ACTIVATE_SELECTOR');
-            }
-            return true;
-        }
-
-        const script = document.createElement('script');
-        script.src = chrome.runtime.getURL('lib/element-selector.js');
-
-        script.onload = function() {
-            this.remove();
-            isSelectorInjected = true;
-            log.info('Element selector injected in ' + (isTopFrame ? 'top frame' : 'iframe'));
-            // Selector auto-activates on load, no need to send message
-        };
-
-        script.onerror = function() {
-            log.error('Failed to inject element selector');
-            sendToExtension('SELECTOR_INJECTION_FAILED', { error: 'Failed to load selector script' });
-        };
-
-        (document.head || document.documentElement).appendChild(script);
-        return true;
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════
     // MESSAGE PASSING
     // ═══════════════════════════════════════════════════════════════════════════
@@ -175,18 +125,6 @@
         if (messageType.startsWith('CMD_')) return;
 
         log.debug(`From page: ${messageType}`);
-
-        // Handle TRIGGER_SEED_EXTRACT from selector - call seed extraction with the text
-        if (messageType === 'TRIGGER_SEED_EXTRACT' && payload?.seedText) {
-            log.info('Triggering seed extraction from selector');
-            if (!isInjected) {
-                injectValidator();
-                setTimeout(() => sendToPage('CMD_SEED_EXTRACT', { seedText: payload.seedText }), 100);
-            } else {
-                sendToPage('CMD_SEED_EXTRACT', { seedText: payload.seedText });
-            }
-        }
-
         sendToExtension(messageType, payload);
     });
 
@@ -248,47 +186,6 @@
 
         [CMD.PING]: () => {
             return { success: true, injected: isInjected };
-        },
-
-        [CMD.ACTIVATE_SELECTOR]: (message) => {
-            // forceFrame allows injection in iframes when explicitly targeted
-            const forceInject = message?.forceFrame === true;
-            const injected = injectSelector(true, forceInject);
-            return { success: injected, isTopFrame, frameId };
-        },
-
-        [CMD.DEACTIVATE_SELECTOR]: () => {
-            sendToPage('CMD_DEACTIVATE_SELECTOR');
-            return { success: true };
-        },
-
-        [CMD.APPLY_SELECTOR_RULE]: (message) => {
-            // Only apply in top frame unless explicitly forced
-            const forceInject = message?.forceFrame === true;
-            if (!isTopFrame && !forceInject) {
-                log.debug('Skipping rule apply - not top frame');
-                return { success: false, reason: 'not_top_frame' };
-            }
-
-            const hybrid = message.hybrid !== false; // Default to hybrid mode
-
-            // For hybrid mode, ensure validator is injected for API detection
-            if (hybrid && !isInjected) {
-                injectValidator();
-            }
-
-            // Inject selector if not already, then send apply command
-            if (!isSelectorInjected) {
-                injectSelector(false, forceInject);
-                // Wait longer if both scripts need to load
-                const delay = (hybrid && !isInjected) ? 200 : 100;
-                setTimeout(() => {
-                    sendToPage('CMD_APPLY_RULE', { rule: message.rule, hybrid });
-                }, delay);
-            } else {
-                sendToPage('CMD_APPLY_RULE', { rule: message.rule, hybrid });
-            }
-            return { success: true, isTopFrame, frameId };
         },
 
         [CMD.DETECT_APIS]: () => {

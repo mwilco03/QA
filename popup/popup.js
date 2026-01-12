@@ -1,5 +1,5 @@
 /**
- * LMS QA Validator - Popup v4.0
+ * LMS QA Validator - Popup v5.0
  * Intentional workflow-driven interface
  *
  * Architecture:
@@ -31,12 +31,8 @@
         CMI_DATA: 'CMI_DATA',
         AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT',
         STATE_UPDATE: 'STATE_UPDATE',
-        SELECTOR_ACTIVATED: 'SELECTOR_ACTIVATED',
-        SELECTOR_DEACTIVATED: 'SELECTOR_DEACTIVATED',
-        SELECTOR_RULE_CREATED: 'SELECTOR_RULE_CREATED',
         EXTRACTION_COMPLETE: 'EXTRACTION_COMPLETE',
         EXTRACTION_ERROR: 'EXTRACTION_ERROR',
-        SELECTOR_INJECTION_FAILED: 'SELECTOR_INJECTION_FAILED',
         FRAMEWORK_DETECTED: 'FRAMEWORK_DETECTED',
         DETECTION_COMPLETE: 'DETECTION_COMPLETE',
         // Objectives and slides completion
@@ -44,11 +40,6 @@
         SLIDES_MARKED: 'SLIDES_MARKED',
         FULL_COMPLETION_RESULT: 'FULL_COMPLETION_RESULT',
         DURATION_ESTIMATE: 'DURATION_ESTIMATE'
-        // Question Bank messages
-        BANK_SAVED: 'BANK_SAVED',
-        BANK_UPDATED: 'BANK_UPDATED',
-        BANK_DELETED: 'BANK_DELETED',
-        BANK_MERGED: 'BANK_MERGED'
     });
 
     const STATUS = Object.freeze({
@@ -158,8 +149,6 @@
         tabId: null,
         tabUrl: '',
         results: null,
-        currentRule: null,
-        selectorActive: false,
         workflow: WORKFLOW.GATE,
         isActivated: false,
         detectedFramework: null,
@@ -220,19 +209,9 @@
             'session-time-minutes', 'session-time-auto', 'time-estimate',
             'btn-test-api', 'btn-set-completion', 'btn-copy-all-correct',
             'btn-complete-objectives', 'btn-mark-slides', 'btn-full-completion',
-            'element-picker', 'btn-auto-select', 'btn-element-selector',
-            'saved-rules', 'rule-info', 'btn-apply-rule', 'btn-delete-rule',
-            'rules-management', 'rules-count', 'btn-export-rules', 'btn-import-rules', 'rules-file-input',
+            'quick-actions', 'btn-auto-select',
             'export-actions', 'btn-export-json', 'btn-export-csv', 'btn-export-txt',
             'toast'
-            'btn-export-json', 'btn-export-csv', 'btn-export-txt',
-            'toast',
-            // Question Banks
-            'question-banks', 'banks-count', 'btn-save-to-bank', 'btn-view-banks',
-            'btn-export-banks', 'btn-import-banks', 'banks-file-input',
-            'bank-modal', 'modal-title', 'modal-body', 'modal-footer', 'btn-close-modal',
-            'save-bank-dialog', 'bank-name', 'tester-name', 'preview-questions',
-            'preview-answers', 'preview-correct', 'btn-cancel-save', 'btn-confirm-save', 'btn-close-save-dialog'
         ];
 
         ids.forEach(id => {
@@ -290,7 +269,7 @@
             // $.tabPanels is a NodeList - iterate over it
             $.tabPanels?.forEach(panel => panel.classList.remove('active'));
             $.scormControls?.classList.remove('active');
-            $.elementPicker?.classList.remove('active');
+            $.quickActions?.classList.remove('active');
             $.exportActions?.classList.remove('active');
             $.quickActionsSaved?.classList.remove('active');
         },
@@ -318,8 +297,7 @@
 
         showMain(hasResults, hasAPIs) {
             $.mainActions?.classList.add('active');
-            $.elementPicker?.classList.add('active');
-            $.rulesManagement?.classList.add('active');
+            $.quickActions?.classList.add('active');
 
             if (hasResults) {
                 $.searchContainer?.classList.add('active', 'has-results');
@@ -607,11 +585,6 @@
             State.setWorkflow(WORKFLOW.RESULTS);
             UI.showSearchContainer(State.hasResults());
 
-            // Update save-to-bank button
-            if ($.btnSaveToBank) {
-                $.btnSaveToBank.disabled = !State.hasResults();
-            }
-
             if (results.apis?.length > 0) {
                 $.scormControls?.classList.add('active');
             }
@@ -889,7 +862,6 @@
                     <span class="related-icon" title="${tab.relationship}">${icons[tab.relationship] || '?'}</span>
                     <span class="related-title" title="${escapeHtml(tab.title)}">${truncate(tab.title, 30)}</span>
                     <div class="related-actions">
-                        <button class="btn-sm btn-pick-tab" data-tab-id="${tab.id}" title="Pick Q&A Elements">Pick</button>
                         <button class="btn-sm btn-scan-tab" data-tab-id="${tab.id}" title="Pattern Scan">Scan</button>
                         <button class="btn-sm btn-focus-tab" data-tab-id="${tab.id}" title="Focus Window">Go</button>
                     </div>
@@ -997,16 +969,7 @@
                 return { active: true, reason: 'LMS URL pattern detected' };
             }
 
-            // Check 2: Do we have saved rules for this domain?
-            const urlPattern = Actions.getURLPattern(url);
-            if (urlPattern) {
-                const response = await Extension.sendToServiceWorker('GET_SELECTOR_RULES', { urlPattern });
-                if (response?.rules) {
-                    return { active: true, reason: 'Saved rules found', hasRules: true };
-                }
-            }
-
-            // Check 3: Check if we have any quick actions for this domain
+            // Check 2: Check if we have any quick actions for this domain
             const domain = this.getDomain(url);
             const quickActions = await this.loadQuickActionsForDomain(domain);
             if (quickActions.length > 0) {
@@ -1483,16 +1446,6 @@
             }
         },
 
-        async activateSelectorOnTab(tabId) {
-            const response = await Extension.sendToServiceWorker('ACTIVATE_SELECTOR_TAB', { targetTabId: tabId });
-            if (response?.success) {
-                Toast.success('Selector activated - switch to that window');
-                window.close();
-            } else {
-                Toast.error('Failed to activate selector: ' + (response?.error || 'Unknown'));
-            }
-        },
-
         focusTab(tabId) {
             chrome.tabs.update(tabId, { active: true });
             chrome.tabs.get(tabId, (tab) => {
@@ -1500,707 +1453,6 @@
                     chrome.windows.update(tab.windowId, { focused: true });
                 }
             });
-        },
-
-        async activateSelector() {
-            if (!$.btnElementSelector) return;
-
-            try {
-                $.btnElementSelector.disabled = true;
-                $.btnElementSelector.innerHTML = `
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3z"/>
-                        <path d="M15 15h6v6h-6z"/>
-                        <circle cx="12" cy="12" r="2"/>
-                    </svg>
-                    Activating...
-                `;
-                State.selectorActive = true;
-
-                const response = await Extension.sendToContent('ACTIVATE_SELECTOR');
-
-                if (response?.success) {
-                    Toast.info('Selector panel opened - close this popup to interact with the page');
-                    setTimeout(() => window.close(), 800);
-                } else {
-                    throw new Error(response?.reason || 'Failed to inject selector');
-                }
-            } catch (error) {
-                Toast.error('Failed to activate selector: ' + error.message);
-                $.btnElementSelector.disabled = false;
-                this.resetSelectorButton();
-                State.selectorActive = false;
-            }
-        },
-
-        resetSelectorButton() {
-            if (!$.btnElementSelector) return;
-
-            $.btnElementSelector.disabled = false;
-            $.btnElementSelector.innerHTML = `
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3z"/>
-                    <path d="M15 15h6v6h-6z"/>
-                    <circle cx="12" cy="12" r="2"/>
-                </svg>
-                Pick Q&A Elements
-            `;
-            State.selectorActive = false;
-        },
-
-        async checkForSavedRule() {
-            try {
-                const urlPattern = this.getURLPattern(State.tabUrl);
-                const response = await Extension.sendToServiceWorker('GET_SELECTOR_RULES', { urlPattern });
-
-                if (response?.rules) {
-                    State.currentRule = response.rules;
-                    this.showSavedRule(response.rules, urlPattern);
-                } else {
-                    this.hideSavedRule();
-                }
-            } catch (error) {
-                console.error('Failed to check for saved rule:', error);
-            }
-        },
-
-        getURLPattern(url) {
-            if (!url) return null;
-            try {
-                const parsed = new URL(url);
-                let path = parsed.pathname.replace(/\/\d+/g, '/*');
-                path = path.replace(/\/$/, '') || '/';
-                return `${parsed.hostname}${path}`;
-            } catch {
-                return null;
-            }
-        },
-
-        showSavedRule(rule, pattern) {
-            if (!$.savedRules || !$.ruleInfo) return;
-
-            $.savedRules.style.display = 'block';
-            $.ruleInfo.innerHTML = `
-                <div class="rule-pattern">${escapeHtml(pattern)}</div>
-                <div class="rule-stats">
-                    Questions: ${rule.questionCount || '?'} |
-                    Answers: ${rule.answerCount || '?'}
-                </div>
-            `;
-        },
-
-        hideSavedRule() {
-            if ($.savedRules) {
-                $.savedRules.style.display = 'none';
-            }
-            State.currentRule = null;
-        },
-
-        async applyRule() {
-            if (!State.currentRule) {
-                Toast.error('No rule to apply');
-                return;
-            }
-
-            Toast.info('Applying saved rule...');
-            await Extension.sendToContent('APPLY_SELECTOR_RULE', { rule: State.currentRule });
-        },
-
-        async deleteRule() {
-            const urlPattern = this.getURLPattern(State.tabUrl);
-            if (!urlPattern) return;
-
-            await Extension.sendToServiceWorker('DELETE_SELECTOR_RULE', { urlPattern });
-            this.hideSavedRule();
-            await this.loadRulesCount();
-            Toast.success('Rule deleted');
-        },
-
-        async loadRulesCount() {
-            try {
-                const response = await Extension.sendToServiceWorker('GET_ALL_SELECTOR_RULES');
-                const rules = response?.rules || {};
-                const count = Object.keys(rules).length;
-
-                UI.updateBadge($.rulesCount, count);
-            } catch (error) {
-                console.error('Failed to load rules count:', error);
-            }
-        },
-
-        async exportRules() {
-            try {
-                const response = await Extension.sendToServiceWorker('GET_ALL_SELECTOR_RULES');
-                const rules = response?.rules || {};
-
-                if (Object.keys(rules).length === 0) {
-                    Toast.error('No rules to export');
-                    return;
-                }
-
-                const exportData = {
-                    version: '4.0.0',
-                    exportedAt: new Date().toISOString(),
-                    rules: rules
-                };
-
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                const data = JSON.stringify(exportData, null, 2);
-                const filename = `lms-qa-rules-${timestamp}.json`;
-
-                this.download(data, filename, 'json');
-                Toast.success(`Exported ${Object.keys(rules).length} rule(s)`);
-            } catch (error) {
-                Toast.error('Failed to export rules: ' + error.message);
-            }
-        },
-
-        async importRules() {
-            $.rulesFileInput?.click();
-        },
-
-        async handleRulesFileSelect(event) {
-            const file = event.target.files?.[0];
-            if (!file) return;
-
-            try {
-                const text = await file.text();
-                const data = JSON.parse(text);
-
-                if (!data.rules || typeof data.rules !== 'object') {
-                    Toast.error('Invalid rules file format');
-                    return;
-                }
-
-                const validRules = {};
-                let validCount = 0;
-
-                for (const [pattern, rule] of Object.entries(data.rules)) {
-                    if (this.isValidRule(rule)) {
-                        validRules[pattern] = rule;
-                        validCount++;
-                    }
-                }
-
-                if (validCount === 0) {
-                    Toast.error('No valid rules found in file');
-                    return;
-                }
-
-                await Extension.sendToServiceWorker('IMPORT_SELECTOR_RULES', { rules: validRules });
-                await this.loadRulesCount();
-                await this.checkForSavedRule();
-
-                Toast.success(`Imported ${validCount} rule(s)`);
-
-                // After importing rules, re-check activation
-                const gateResult = await ActivationGate.check();
-                if (gateResult.active) {
-                    ActivationGate.activate();
-                }
-            } catch (error) {
-                Toast.error('Failed to import: ' + error.message);
-            }
-
-            event.target.value = '';
-        },
-
-        isValidRule(rule) {
-            return rule &&
-                   typeof rule.questionSelector === 'string' &&
-                   typeof rule.answerSelector === 'string';
-        }
-    };
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // QUESTION BANKS
-    // Team collaboration - save, share, merge question banks
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    const QuestionBanks = {
-        currentBanks: {},
-        selectedBankId: null,
-
-        async loadBanksCount() {
-            try {
-                const response = await Extension.sendToServiceWorker('GET_QUESTION_BANKS');
-                const banks = response?.banks || {};
-                const count = Object.keys(banks).length;
-                this.currentBanks = banks;
-                UI.updateBadge($.banksCount, count);
-
-                // Enable/disable save button based on results
-                if ($.btnSaveToBank) {
-                    $.btnSaveToBank.disabled = !State.hasResults();
-                }
-            } catch (error) {
-                console.error('Failed to load banks:', error);
-            }
-        },
-
-        showSaveDialog() {
-            if (!State.hasResults()) {
-                Toast.error('No scan results to save');
-                return;
-            }
-
-            // Update preview stats
-            const questions = State.results?.qa?.questions || [];
-            const items = State.results?.qa?.items || [];
-            const answers = items.filter(i => i.type === 'answer');
-            const correct = items.filter(i => i.correct);
-
-            if ($.previewQuestions) $.previewQuestions.textContent = questions.length;
-            if ($.previewAnswers) $.previewAnswers.textContent = answers.length;
-            if ($.previewCorrect) $.previewCorrect.textContent = correct.length;
-
-            // Pre-fill bank name from URL
-            if ($.bankName) {
-                try {
-                    const url = new URL(State.tabUrl);
-                    const pathParts = url.pathname.split('/').filter(p => p && !/^\d+$/.test(p));
-                    const suggestedName = pathParts.slice(-2).join(' - ') || url.hostname;
-                    $.bankName.value = suggestedName;
-                } catch {
-                    $.bankName.value = '';
-                }
-            }
-
-            // Show dialog
-            if ($.saveBankDialog) $.saveBankDialog.style.display = 'flex';
-        },
-
-        hideSaveDialog() {
-            if ($.saveBankDialog) $.saveBankDialog.style.display = 'none';
-        },
-
-        async saveToBank() {
-            const name = $.bankName?.value?.trim() || 'Unnamed Bank';
-            const testerName = $.testerName?.value?.trim() || '';
-
-            // Build questions array from results
-            const questions = State.results?.qa?.questions || [];
-            const items = State.results?.qa?.items || [];
-
-            // Group items into questions with their answers
-            const structuredQuestions = questions.map((q, idx) => {
-                const qIndex = items.findIndex(item => item.type === 'question' && item.text === q.text);
-                const answers = [];
-                for (let i = qIndex + 1; i < items.length; i++) {
-                    if (items[i].type === 'answer') {
-                        answers.push({
-                            text: items[i].text,
-                            isCorrect: items[i].correct || false
-                        });
-                    } else if (items[i].type === 'question') {
-                        break;
-                    }
-                }
-                return {
-                    text: q.text,
-                    type: q.questionType || 'choice',
-                    answers
-                };
-            });
-
-            const bankData = {
-                name,
-                testerName,
-                sourceUrl: State.tabUrl,
-                tool: State.results?.tool || 'generic',
-                questions: structuredQuestions
-            };
-
-            try {
-                const response = await Extension.sendToServiceWorker('SAVE_QUESTION_BANK', { bankData });
-                if (response?.success) {
-                    Toast.success(`Saved "${name}" with ${structuredQuestions.length} questions`);
-                    this.hideSaveDialog();
-                    await this.loadBanksCount();
-                } else {
-                    Toast.error('Failed to save: ' + (response?.error || 'Unknown error'));
-                }
-            } catch (error) {
-                Toast.error('Save failed: ' + error.message);
-            }
-        },
-
-        async showBanksList() {
-            const response = await Extension.sendToServiceWorker('GET_QUESTION_BANKS');
-            const banks = response?.banks || {};
-            this.currentBanks = banks;
-
-            const banksList = Object.values(banks);
-
-            if ($.modalTitle) $.modalTitle.textContent = 'Question Banks';
-
-            if (banksList.length === 0) {
-                if ($.modalBody) {
-                    $.modalBody.innerHTML = '<div class="bank-list-empty">No question banks saved yet.<br>Scan a page and click "Save to Bank" to create one.</div>';
-                }
-                if ($.modalFooter) $.modalFooter.innerHTML = '';
-            } else {
-                if ($.modalBody) {
-                    $.modalBody.innerHTML = `<div class="bank-list">${banksList.map(bank => this.renderBankCard(bank)).join('')}</div>`;
-                }
-                if ($.modalFooter) {
-                    $.modalFooter.innerHTML = `
-                        <button class="btn btn-outline" id="btn-merge-banks">Merge Banks</button>
-                    `;
-                }
-            }
-
-            // Show modal
-            if ($.bankModal) $.bankModal.style.display = 'flex';
-
-            // Bind card actions
-            this.bindBankCardActions();
-        },
-
-        renderBankCard(bank) {
-            const verifiedPct = bank.summary?.totalQuestions > 0
-                ? Math.round((bank.summary.verifiedQuestions / bank.summary.totalQuestions) * 100)
-                : 0;
-
-            const toolNames = {
-                storyline: 'Storyline',
-                rise: 'Rise 360',
-                captivate: 'Captivate',
-                lectora: 'Lectora',
-                ispring: 'iSpring'
-            };
-
-            return `
-                <div class="bank-card" data-bank-id="${bank.id}">
-                    <div class="bank-card-header">
-                        <span class="bank-name">${escapeHtml(bank.name)}</span>
-                        <span class="bank-tool">${toolNames[bank.tool] || bank.tool}</span>
-                    </div>
-                    <div class="bank-stats">
-                        <span>${bank.summary?.totalQuestions || 0} questions</span>
-                        <span class="verified">${verifiedPct}% verified</span>
-                    </div>
-                    <div class="bank-meta">
-                        Created by ${escapeHtml(bank.createdBy || 'Unknown')} • ${this.formatDate(bank.createdAt)}
-                    </div>
-                    <div class="bank-card-actions">
-                        <button class="btn btn-outline btn-sm btn-view-bank" data-bank-id="${bank.id}">View</button>
-                        <button class="btn btn-outline btn-sm btn-delete-bank btn-danger" data-bank-id="${bank.id}">Delete</button>
-                    </div>
-                </div>
-            `;
-        },
-
-        bindBankCardActions() {
-            // View bank
-            $.modalBody?.querySelectorAll('.btn-view-bank').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.showBankDetail(btn.dataset.bankId);
-                });
-            });
-
-            // Delete bank
-            $.modalBody?.querySelectorAll('.btn-delete-bank').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    const bankId = btn.dataset.bankId;
-                    const bank = this.currentBanks[bankId];
-                    if (confirm(`Delete "${bank?.name}"? This cannot be undone.`)) {
-                        await this.deleteBank(bankId);
-                    }
-                });
-            });
-
-            // Merge banks button
-            $.modalFooter?.querySelector('#btn-merge-banks')?.addEventListener('click', () => {
-                this.showMergeDialog();
-            });
-        },
-
-        async showBankDetail(bankId) {
-            const bank = this.currentBanks[bankId];
-            if (!bank) return;
-
-            this.selectedBankId = bankId;
-
-            if ($.modalTitle) $.modalTitle.textContent = bank.name;
-
-            if ($.modalBody) {
-                $.modalBody.innerHTML = `
-                    <div class="bank-detail-header">
-                        <div class="bank-detail-meta">
-                            Created by ${escapeHtml(bank.createdBy || 'Unknown')} • ${this.formatDate(bank.createdAt)}
-                            ${bank.mergeHistory?.length > 0 ? `<br>Merged ${bank.mergeHistory.length} time(s)` : ''}
-                        </div>
-                    </div>
-                    <div class="bank-detail-stats">
-                        <div class="stat">
-                            <span class="stat-value">${bank.summary?.totalQuestions || 0}</span>
-                            <span class="stat-label">Questions</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-value">${bank.summary?.verifiedQuestions || 0}</span>
-                            <span class="stat-label">Verified</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-value">${bank.summary?.correctAnswers || 0}</span>
-                            <span class="stat-label">Correct</span>
-                        </div>
-                    </div>
-                    <div class="bank-questions">
-                        ${bank.questions.map((q, idx) => this.renderBankQuestion(q, idx, bankId)).join('')}
-                    </div>
-                `;
-            }
-
-            if ($.modalFooter) {
-                $.modalFooter.innerHTML = `
-                    <button class="btn btn-outline" id="btn-back-to-list">Back</button>
-                    <button class="btn btn-primary" id="btn-export-single-bank">Export</button>
-                `;
-            }
-
-            // Bind actions
-            $.modalFooter?.querySelector('#btn-back-to-list')?.addEventListener('click', () => {
-                this.showBanksList();
-            });
-
-            $.modalFooter?.querySelector('#btn-export-single-bank')?.addEventListener('click', () => {
-                this.exportSingleBank(bankId);
-            });
-
-            // Bind verification checkboxes
-            this.bindVerificationHandlers(bankId);
-        },
-
-        renderBankQuestion(question, idx, bankId) {
-            const tagsHtml = question.tags.length > 0
-                ? `<div class="bank-question-tags">${question.tags.map(t => `<span class="bank-tag">${escapeHtml(t)}</span>`).join('')}</div>`
-                : '';
-
-            return `
-                <div class="bank-question-item" data-question-id="${question.id}">
-                    <div class="bank-question-text">
-                        <strong>Q${idx + 1}:</strong> ${escapeHtml(question.text)}
-                    </div>
-                    <div class="bank-question-meta">
-                        <label class="verify-checkbox">
-                            <input type="checkbox" ${question.verified ? 'checked' : ''}
-                                   data-bank-id="${bankId}" data-question-id="${question.id}" class="question-verify-cb">
-                            Verified
-                        </label>
-                        ${question.verified ? `<span class="bank-question-verified">by ${escapeHtml(question.verifiedBy || 'Unknown')}</span>` : ''}
-                        ${tagsHtml}
-                    </div>
-                </div>
-            `;
-        },
-
-        bindVerificationHandlers(bankId) {
-            $.modalBody?.querySelectorAll('.question-verify-cb').forEach(cb => {
-                cb.addEventListener('change', async (e) => {
-                    const questionId = e.target.dataset.questionId;
-                    const verified = e.target.checked;
-                    const testerName = $.testerName?.value?.trim() || localStorage.getItem('lmsqa_tester_name') || '';
-
-                    await Extension.sendToServiceWorker('UPDATE_BANK_ITEM', {
-                        updateData: {
-                            bankId,
-                            questionId,
-                            verified,
-                            testerName
-                        }
-                    });
-
-                    // Refresh view
-                    const response = await Extension.sendToServiceWorker('GET_QUESTION_BANKS', { bankId });
-                    if (response?.banks) {
-                        this.currentBanks[bankId] = response.banks;
-                        this.showBankDetail(bankId);
-                    }
-                });
-            });
-        },
-
-        showMergeDialog() {
-            const banksList = Object.values(this.currentBanks);
-            if (banksList.length < 2) {
-                Toast.info('Need at least 2 banks to merge');
-                return;
-            }
-
-            if ($.modalTitle) $.modalTitle.textContent = 'Merge Question Banks';
-
-            if ($.modalBody) {
-                $.modalBody.innerHTML = `
-                    <p style="margin-bottom: var(--space-md); color: var(--color-text-secondary);">
-                        Select a source bank to merge INTO another bank.
-                    </p>
-                    <div class="merge-banks-list">
-                        ${banksList.map(bank => `
-                            <label class="merge-bank-option">
-                                <input type="radio" name="source-bank" value="${bank.id}">
-                                <div class="merge-bank-info">
-                                    <div class="merge-bank-name">${escapeHtml(bank.name)}</div>
-                                    <div class="merge-bank-stats">${bank.summary?.totalQuestions || 0} questions</div>
-                                </div>
-                            </label>
-                        `).join('')}
-                    </div>
-                    <p style="margin-bottom: var(--space-sm); color: var(--color-text-secondary);">
-                        Merge INTO:
-                    </p>
-                    <div class="merge-banks-list">
-                        ${banksList.map(bank => `
-                            <label class="merge-bank-option">
-                                <input type="radio" name="target-bank" value="${bank.id}">
-                                <div class="merge-bank-info">
-                                    <div class="merge-bank-name">${escapeHtml(bank.name)}</div>
-                                    <div class="merge-bank-stats">${bank.summary?.totalQuestions || 0} questions</div>
-                                </div>
-                            </label>
-                        `).join('')}
-                    </div>
-                `;
-            }
-
-            if ($.modalFooter) {
-                $.modalFooter.innerHTML = `
-                    <button class="btn btn-outline" id="btn-cancel-merge">Cancel</button>
-                    <button class="btn btn-primary" id="btn-confirm-merge">Merge</button>
-                `;
-            }
-
-            $.modalFooter?.querySelector('#btn-cancel-merge')?.addEventListener('click', () => {
-                this.showBanksList();
-            });
-
-            $.modalFooter?.querySelector('#btn-confirm-merge')?.addEventListener('click', async () => {
-                const sourceId = $.modalBody?.querySelector('input[name="source-bank"]:checked')?.value;
-                const targetId = $.modalBody?.querySelector('input[name="target-bank"]:checked')?.value;
-
-                if (!sourceId || !targetId) {
-                    Toast.error('Select both source and target banks');
-                    return;
-                }
-
-                if (sourceId === targetId) {
-                    Toast.error('Cannot merge bank into itself');
-                    return;
-                }
-
-                await this.mergeBanks(sourceId, targetId);
-            });
-        },
-
-        async mergeBanks(sourceId, targetId) {
-            const testerName = $.testerName?.value?.trim() || localStorage.getItem('lmsqa_tester_name') || '';
-
-            try {
-                const response = await Extension.sendToServiceWorker('MERGE_QUESTION_BANKS', {
-                    mergeData: {
-                        sourceBankId: sourceId,
-                        targetBankId: targetId,
-                        testerName,
-                        strategy: 'merge_all'
-                    }
-                });
-
-                if (response?.success) {
-                    Toast.success(`Merged! Added ${response.questionsAdded}, updated ${response.questionsUpdated}`);
-                    await this.loadBanksCount();
-                    this.showBanksList();
-                } else {
-                    Toast.error('Merge failed: ' + (response?.error || 'Unknown error'));
-                }
-            } catch (error) {
-                Toast.error('Merge failed: ' + error.message);
-            }
-        },
-
-        async deleteBank(bankId) {
-            try {
-                const response = await Extension.sendToServiceWorker('DELETE_QUESTION_BANK', { bankId });
-                if (response?.success) {
-                    Toast.success('Bank deleted');
-                    await this.loadBanksCount();
-                    this.showBanksList();
-                } else {
-                    Toast.error('Delete failed: ' + (response?.error || 'Unknown error'));
-                }
-            } catch (error) {
-                Toast.error('Delete failed: ' + error.message);
-            }
-        },
-
-        async exportSingleBank(bankId) {
-            try {
-                await Extension.sendToServiceWorker('EXPORT_QUESTION_BANKS', { bankIds: [bankId] });
-                Toast.success('Bank exported');
-            } catch (error) {
-                Toast.error('Export failed: ' + error.message);
-            }
-        },
-
-        async exportAllBanks() {
-            try {
-                await Extension.sendToServiceWorker('EXPORT_QUESTION_BANKS', { bankIds: null });
-                Toast.success('All banks exported');
-            } catch (error) {
-                Toast.error('Export failed: ' + error.message);
-            }
-        },
-
-        async importBanks() {
-            $.banksFileInput?.click();
-        },
-
-        async handleBanksFileSelect(event) {
-            const file = event.target.files?.[0];
-            if (!file) return;
-
-            try {
-                const text = await file.text();
-                const data = JSON.parse(text);
-
-                if (data.schema !== 'lms-qa-question-bank') {
-                    Toast.error('Invalid question bank file');
-                    return;
-                }
-
-                const testerName = $.testerName?.value?.trim() || localStorage.getItem('lmsqa_tester_name') || '';
-
-                const response = await Extension.sendToServiceWorker('IMPORT_QUESTION_BANKS', {
-                    importData: data,
-                    testerName
-                });
-
-                if (response?.success) {
-                    Toast.success(`Imported ${response.imported} bank(s), skipped ${response.skipped}`);
-                    await this.loadBanksCount();
-                } else {
-                    Toast.error('Import failed: ' + (response?.error || 'Unknown error'));
-                }
-            } catch (error) {
-                Toast.error('Import failed: ' + error.message);
-            }
-
-            event.target.value = '';
-        },
-
-        hideModal() {
-            if ($.bankModal) $.bankModal.style.display = 'none';
-        },
-
-        formatDate(isoString) {
-            if (!isoString) return 'Unknown date';
-            try {
-                const date = new Date(isoString);
-                return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-            } catch {
-                return 'Unknown date';
-            }
         }
     };
 
@@ -2310,22 +1562,6 @@
             }
         },
 
-        [MSG.SELECTOR_ACTIVATED]: () => {
-            State.selectorActive = true;
-            Toast.info('Selector active - pick elements on the page');
-        },
-
-        [MSG.SELECTOR_DEACTIVATED]: () => {
-            Actions.resetSelectorButton();
-            State.selectorActive = false;
-        },
-
-        [MSG.SELECTOR_INJECTION_FAILED]: (payload) => {
-            Toast.error('Selector failed: ' + (payload.error || 'Unknown error'));
-            State.selectorActive = false;
-            Actions.resetSelectorButton();
-        },
-
         [MSG.AUTO_SELECT_RESULT]: (payload) => {
             if (payload.count > 0) {
                 Toast.success(`Selected ${payload.count} correct answer(s)`);
@@ -2337,17 +1573,6 @@
         [MSG.STATE_UPDATE]: (payload) => {
             if (payload.results) {
                 Renderer.renderAll(payload.results);
-            }
-        },
-
-        [MSG.SELECTOR_RULE_CREATED]: (payload) => {
-            Actions.resetSelectorButton();
-            State.selectorActive = false;
-
-            if (payload.rule) {
-                State.currentRule = payload.rule;
-                Actions.showSavedRule(payload.rule, payload.rule.urlPattern);
-                Toast.success(`Rule saved! Q:${payload.rule.questionCount} A:${payload.rule.answerCount}`);
             }
         },
 
@@ -2460,26 +1685,6 @@
                 State.setWorkflow(WORKFLOW.IDLE);
             }
             Toast.error(payload.error || 'Extraction failed');
-        },
-
-        // Question Bank messages
-        [MSG.BANK_SAVED]: (payload) => {
-            Log.add('info', `Question bank saved: ${payload?.bank?.name}`);
-            QuestionBanks.loadBanksCount();
-        },
-
-        [MSG.BANK_UPDATED]: (payload) => {
-            Log.add('info', `Question bank updated: ${payload?.bank?.name}`);
-        },
-
-        [MSG.BANK_DELETED]: () => {
-            Log.add('info', 'Question bank deleted');
-            QuestionBanks.loadBanksCount();
-        },
-
-        [MSG.BANK_MERGED]: (payload) => {
-            Log.add('info', `Banks merged: +${payload?.questionsAdded} questions, ~${payload?.questionsUpdated} updated`);
-            QuestionBanks.loadBanksCount();
         }
     };
 
@@ -2501,8 +1706,6 @@
             // Optionally start detection
             Actions.detect();
         });
-
-        $.btnImportRulesGate?.addEventListener('click', () => Actions.importRules());
 
         // Framework panel actions
         $.btnExtractQa?.addEventListener('click', () => Actions.extractQA());
@@ -2571,39 +1774,8 @@
         // Quick copy
         $.btnCopyAllCorrect?.addEventListener('click', () => Actions.copyAllCorrect());
 
-        // Element picker
+        // Quick actions
         $.btnAutoSelect?.addEventListener('click', () => Actions.autoSelect());
-        $.btnElementSelector?.addEventListener('click', () => Actions.activateSelector());
-
-        // Saved rules
-        $.btnApplyRule?.addEventListener('click', () => Actions.applyRule());
-        $.btnDeleteRule?.addEventListener('click', () => Actions.deleteRule());
-
-        // Rules management
-        $.btnExportRules?.addEventListener('click', () => Actions.exportRules());
-        $.btnImportRules?.addEventListener('click', () => Actions.importRules());
-        $.rulesFileInput?.addEventListener('change', (e) => Actions.handleRulesFileSelect(e));
-
-        // Question Banks
-        $.btnSaveToBank?.addEventListener('click', () => QuestionBanks.showSaveDialog());
-        $.btnViewBanks?.addEventListener('click', () => QuestionBanks.showBanksList());
-        $.btnExportBanks?.addEventListener('click', () => QuestionBanks.exportAllBanks());
-        $.btnImportBanks?.addEventListener('click', () => QuestionBanks.importBanks());
-        $.banksFileInput?.addEventListener('change', (e) => QuestionBanks.handleBanksFileSelect(e));
-
-        // Save bank dialog
-        $.btnConfirmSave?.addEventListener('click', () => QuestionBanks.saveToBank());
-        $.btnCancelSave?.addEventListener('click', () => QuestionBanks.hideSaveDialog());
-        $.btnCloseSaveDialog?.addEventListener('click', () => QuestionBanks.hideSaveDialog());
-
-        // Bank modal
-        $.btnCloseModal?.addEventListener('click', () => QuestionBanks.hideModal());
-        $.bankModal?.addEventListener('click', (e) => {
-            if (e.target === $.bankModal) QuestionBanks.hideModal();
-        });
-        $.saveBankDialog?.addEventListener('click', (e) => {
-            if (e.target === $.saveBankDialog) QuestionBanks.hideSaveDialog();
-        });
 
         // Export
         $.btnExportJson?.addEventListener('click', () => Actions.export('json'));
@@ -2616,13 +1788,9 @@
         // Related tabs
         $.btnRefreshRelated?.addEventListener('click', () => Actions.loadRelatedTabs());
         $.relatedList?.addEventListener('click', (e) => {
-            const pickBtn = e.target.closest('.btn-pick-tab');
             const scanBtn = e.target.closest('.btn-scan-tab');
             const focusBtn = e.target.closest('.btn-focus-tab');
 
-            if (pickBtn) {
-                Actions.activateSelectorOnTab(parseInt(pickBtn.dataset.tabId, 10));
-            }
             if (scanBtn) {
                 Actions.scanRelatedTab(parseInt(scanBtn.dataset.tabId, 10));
             }
@@ -2725,19 +1893,8 @@
         // Load related tabs
         await Actions.loadRelatedTabs();
 
-        // Check for saved selector rules
-        await Actions.checkForSavedRule();
-
-        // Load rules count
-        await Actions.loadRulesCount();
-
-        console.log('[LMS QA Popup v4.0] Initialized');
-        // Load question banks count
-        await QuestionBanks.loadBanksCount();
-
         UI.setStatus(STATUS.READY);
-
-        console.log('[LMS QA Popup] Initialized');
+        console.log('[LMS QA Popup v5.0] Initialized');
     }
 
     // Start when DOM ready

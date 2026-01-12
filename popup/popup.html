@@ -300,15 +300,13 @@
         </div>
     </section>
 
-    <!-- Element Picker Section -->
-    <section id="element-picker" class="element-picker">
+    <!-- Quick Actions -->
+    <section id="quick-actions" class="quick-actions">
         <div class="section-header">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3z"/>
-                <path d="M15 15h6v6h-6z"/>
-                <circle cx="12" cy="12" r="2"/>
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
             </svg>
-            <span>Manual Selection</span>
+            <span>Quick Actions</span>
         </div>
         <button id="btn-auto-select" class="btn btn-success full-width">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -317,167 +315,8 @@
             </svg>
             Auto-Select Answers
         </button>
-        <button id="btn-element-selector" class="btn btn-outline btn-sm" title="Manual picker for custom LMS layouts">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-            </svg>
-            Manual Picker
-        </button>
     </section>
 
-    <!-- Saved Rules - Only show if rule exists for current page -->
-    <section id="saved-rules" class="saved-rules" style="display: none;">
-        <div class="section-header">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
-            </svg>
-            <span>Saved Rule</span>
-        </div>
-        <div id="rule-info" class="rule-info"></div>
-        <div class="rule-actions">
-            <button id="btn-apply-rule" class="btn btn-outline btn-sm">Apply Rule</button>
-            <button id="btn-delete-rule" class="btn btn-outline btn-sm btn-danger">Delete</button>
-        </div>
-    </section>
-
-    <!-- Question Banks (Team Collaboration) -->
-    <section id="question-banks" class="question-banks">
-        <div class="section-header">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                <path d="M8 7h8M8 11h8M8 15h5"/>
-            </svg>
-            <span>Question Banks</span>
-            <span id="banks-count" class="badge banks-badge">0</span>
-        </div>
-        <div class="bank-actions">
-            <button id="btn-save-to-bank" class="btn btn-outline btn-sm" disabled title="Save current scan to a question bank">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-                    <polyline points="17 21 17 13 7 13 7 21"/>
-                    <polyline points="7 3 7 8 15 8"/>
-                </svg>
-                Save to Bank
-            </button>
-            <button id="btn-view-banks" class="btn btn-outline btn-sm" title="View and manage question banks">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <rect x="3" y="3" width="7" height="7"/>
-                    <rect x="14" y="3" width="7" height="7"/>
-                    <rect x="14" y="14" width="7" height="7"/>
-                    <rect x="3" y="14" width="7" height="7"/>
-                </svg>
-                View Banks
-            </button>
-        </div>
-        <div class="bank-actions">
-            <button id="btn-export-banks" class="btn btn-outline btn-sm" title="Export banks for sharing with team">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                Export Banks
-            </button>
-            <button id="btn-import-banks" class="btn btn-outline btn-sm" title="Import banks from team member">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
-                </svg>
-                Import Banks
-            </button>
-        </div>
-        <input type="file" id="banks-file-input" accept=".json" style="display: none;">
-    </section>
-
-    <!-- Bank View Modal -->
-    <div id="bank-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modal-title">Question Banks</h3>
-                <button id="btn-close-modal" class="btn-icon" title="Close">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                </button>
-            </div>
-            <div id="modal-body" class="modal-body">
-                <!-- Bank list or bank detail view -->
-            </div>
-            <div id="modal-footer" class="modal-footer">
-                <!-- Action buttons -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Save Bank Dialog -->
-    <div id="save-bank-dialog" class="modal" style="display: none;">
-        <div class="modal-content modal-sm">
-            <div class="modal-header">
-                <h3>Save to Question Bank</h3>
-                <button id="btn-close-save-dialog" class="btn-icon" title="Close">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="bank-name">Bank Name</label>
-                    <input type="text" id="bank-name" class="input" placeholder="e.g., Safety Training Module 1">
-                </div>
-                <div class="form-group">
-                    <label for="tester-name">Your Name (optional)</label>
-                    <input type="text" id="tester-name" class="input" placeholder="e.g., John">
-                </div>
-                <div class="bank-preview">
-                    <span id="preview-questions">0</span> questions,
-                    <span id="preview-answers">0</span> answers,
-                    <span id="preview-correct">0</span> correct
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="btn-cancel-save" class="btn btn-outline">Cancel</button>
-                <button id="btn-confirm-save" class="btn btn-primary">Save Bank</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Rules Management -->
-    <section id="rules-management" class="rules-management">
-        <div class="section-header">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-                <polyline points="17 21 17 13 7 13 7 21"/>
-                <polyline points="7 3 7 8 15 8"/>
-            </svg>
-            <span>Selector Rules</span>
-            <span id="rules-count" class="badge rules-badge">0</span>
-        </div>
-        <div class="rules-buttons">
-            <button id="btn-export-rules" class="btn btn-outline btn-sm">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                Export
-            </button>
-            <button id="btn-import-rules" class="btn btn-outline btn-sm">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
-                </svg>
-                Import
-            </button>
-        </div>
-        <input type="file" id="rules-file-input" accept=".json" style="display: none;">
-    </section>
 
     <!-- Export Actions - Only show when results exist -->
     <section id="export-actions" class="export-actions">
@@ -498,7 +337,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-        <span class="version">v4.0</span>
+        <span class="version">v5.0</span>
         <span class="shortcuts">Ctrl+R: Scan | Ctrl+F: Search | Ctrl+E: Export</span>
     </footer>
 
