@@ -268,17 +268,69 @@
         });
     }
 
+    // Check if scripts are already injected in page context
+    function checkExistingScripts() {
+        // Use inline script to check page context globals
+        const checkScript = document.createElement('script');
+        checkScript.textContent = `
+            window.postMessage({
+                type: 'LMS_QA_SCRIPT_CHECK',
+                validatorPresent: !!window.__LMS_QA_INJECTED__,
+                extractorPresent: !!window.__LMS_QA_EXTRACTOR__
+            }, '*');
+        `;
+        document.documentElement.appendChild(checkScript);
+        checkScript.remove();
+    }
+
+    // Listen for script check response
+    window.addEventListener('message', (event) => {
+        if (event.source !== window) return;
+        if (event.data?.type === 'LMS_QA_SCRIPT_CHECK') {
+            if (event.data.validatorPresent && !isValidatorReady) {
+                log.info('CHECK', 'Validator already present in page context');
+                isValidatorInjected = true;
+                isValidatorReady = true;
+                processValidatorQueue();
+            }
+            if (event.data.extractorPresent && !isExtractorReady) {
+                log.info('CHECK', 'Extractor already present in page context');
+                isExtractorInjected = true;
+                isExtractorReady = true;
+                processExtractorQueue();
+            }
+        }
+    }, { once: false });
+
     async function injectValidator() {
-        if (isValidatorInjected) {
-            log.verbose('INJECT', 'Validator already injected');
-            return isValidatorReady;
+        if (isValidatorInjected && isValidatorReady) {
+            log.verbose('INJECT', 'Validator already injected and ready');
+            return true;
+        }
+
+        // First check if it's already in page context
+        checkExistingScripts();
+        await new Promise(r => setTimeout(r, 50));
+
+        if (isValidatorReady) {
+            log.info('INJECT', 'Validator was already present');
+            return true;
         }
 
         try {
             await injectScript('lms-qa-validator.js', chrome.runtime.getURL('lib/lms-qa-validator.js'));
             isValidatorInjected = true;
             log.info('INJECT', 'Validator script injected, waiting for READY...');
-            // READY message will be received via page message listener
+
+            // Set a fallback timeout - process queue after 2 seconds if READY hasn't arrived
+            setTimeout(() => {
+                if (!isValidatorReady && validatorCommandQueue.length > 0) {
+                    log.warn('INJECT', 'READY timeout - processing queue anyway');
+                    isValidatorReady = true;
+                    processValidatorQueue();
+                }
+            }, 2000);
+
             return true;
         } catch (e) {
             log.error('INJECT', `Validator injection failed: ${e.message}`);
@@ -287,15 +339,34 @@
     }
 
     async function injectTasksExtractor() {
-        if (isExtractorInjected) {
-            log.verbose('INJECT', 'TasksExtractor already injected');
-            return isExtractorReady;
+        if (isExtractorInjected && isExtractorReady) {
+            log.verbose('INJECT', 'TasksExtractor already injected and ready');
+            return true;
+        }
+
+        // First check if it's already in page context
+        checkExistingScripts();
+        await new Promise(r => setTimeout(r, 50));
+
+        if (isExtractorReady) {
+            log.info('INJECT', 'Extractor was already present');
+            return true;
         }
 
         try {
             await injectScript('tasks-extractor.js', chrome.runtime.getURL('lib/tasks-extractor.js'));
             isExtractorInjected = true;
             log.info('INJECT', 'TasksExtractor script injected, waiting for READY...');
+
+            // Set a fallback timeout
+            setTimeout(() => {
+                if (!isExtractorReady && extractorCommandQueue.length > 0) {
+                    log.warn('INJECT', 'Extractor READY timeout - processing queue anyway');
+                    isExtractorReady = true;
+                    processExtractorQueue();
+                }
+            }, 2000);
+
             return true;
         } catch (e) {
             log.error('INJECT', `TasksExtractor injection failed: ${e.message}`);
@@ -305,6 +376,7 @@
 
     // Process queued commands when script becomes ready
     function processValidatorQueue() {
+        if (validatorCommandQueue.length === 0) return;
         log.info('QUEUE', `Processing ${validatorCommandQueue.length} queued validator commands`);
         while (validatorCommandQueue.length > 0) {
             const { command, payload } = validatorCommandQueue.shift();
@@ -314,6 +386,7 @@
     }
 
     function processExtractorQueue() {
+        if (extractorCommandQueue.length === 0) return;
         log.info('QUEUE', `Processing ${extractorCommandQueue.length} queued extractor commands`);
         while (extractorCommandQueue.length > 0) {
             const { command, payload } = extractorCommandQueue.shift();
@@ -322,32 +395,44 @@
         }
     }
 
-    // Send command to validator (with queueing if not ready)
+    // Send command to validator - SIMPLIFIED: just inject and send
     async function sendValidatorCommand(command, payload = {}) {
+        // Always ensure validator is injected first
+        if (!isValidatorInjected) {
+            await injectValidator();
+        }
+
+        // If ready, send immediately
         if (isValidatorReady) {
             sendToPage(command, payload);
-        } else if (isValidatorInjected) {
-            // Script injected but not ready yet - queue the command
-            log.verbose('QUEUE', `Queueing validator command: ${command}`);
-            validatorCommandQueue.push({ command, payload });
-        } else {
-            // Need to inject first
-            log.info('INJECT', `Injecting validator for command: ${command}`);
-            validatorCommandQueue.push({ command, payload });
+            return;
+        }
+
+        // Queue the command and wait for READY (with timeout fallback)
+        log.verbose('QUEUE', `Queueing validator command: ${command}`);
+        validatorCommandQueue.push({ command, payload });
+
+        // If not injected yet, do it now
+        if (!isValidatorInjected) {
             await injectValidator();
         }
     }
 
-    // Send command to extractor (with queueing if not ready)
+    // Send command to extractor - SIMPLIFIED
     async function sendExtractorCommand(command, payload = {}) {
+        if (!isExtractorInjected) {
+            await injectTasksExtractor();
+        }
+
         if (isExtractorReady) {
             sendToPage(command, payload);
-        } else if (isExtractorInjected) {
-            log.verbose('QUEUE', `Queueing extractor command: ${command}`);
-            extractorCommandQueue.push({ command, payload });
-        } else {
-            log.info('INJECT', `Injecting extractor for command: ${command}`);
-            extractorCommandQueue.push({ command, payload });
+            return;
+        }
+
+        log.verbose('QUEUE', `Queueing extractor command: ${command}`);
+        extractorCommandQueue.push({ command, payload });
+
+        if (!isExtractorInjected) {
             await injectTasksExtractor();
         }
     }
@@ -607,6 +692,10 @@
 
     // Detect cmi5 launch params
     detectLaunchParams();
+
+    // Check if scripts are already injected from previous extension load
+    log.info('INIT', 'Checking for existing page scripts...');
+    checkExistingScripts();
 
     // Auto-inject Tasks Extractor for network interception (in all frames)
     log.info('INIT', 'Auto-injecting TasksExtractor...');
