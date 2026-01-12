@@ -26,7 +26,12 @@ const MSG = Object.freeze({
     SELECTOR_DEACTIVATED: 'SELECTOR_DEACTIVATED',
     SELECTOR_RULE_CREATED: 'SELECTOR_RULE_CREATED',
     EXTRACTION_COMPLETE: 'EXTRACTION_COMPLETE',
-    EXTRACTION_ERROR: 'EXTRACTION_ERROR'
+    EXTRACTION_ERROR: 'EXTRACTION_ERROR',
+    // Question Bank messages
+    BANK_SAVED: 'BANK_SAVED',
+    BANK_UPDATED: 'BANK_UPDATED',
+    BANK_DELETED: 'BANK_DELETED',
+    BANK_MERGED: 'BANK_MERGED'
 });
 
 const LMS_URL_PATTERNS = [
@@ -571,6 +576,71 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse({ success: false, error: 'No active session for domain' });
             }
             return true;
+
+        // Question Bank Operations
+        case 'SAVE_QUESTION_BANK':
+            saveQuestionBank(message.bankData).then(result => {
+                if (result.success) {
+                    notifyPopup(MSG.BANK_SAVED, { bank: result.bank });
+                }
+                sendResponse(result);
+            });
+            return true;
+
+        case 'GET_QUESTION_BANKS':
+            getQuestionBanks(message.bankId).then(result => {
+                sendResponse({ success: true, banks: result });
+            });
+            return true;
+
+        case 'UPDATE_BANK_ITEM':
+            updateBankItem(message.updateData).then(result => {
+                if (result.success) {
+                    notifyPopup(MSG.BANK_UPDATED, { bank: result.bank });
+                }
+                sendResponse(result);
+            });
+            return true;
+
+        case 'DELETE_QUESTION_BANK':
+            deleteQuestionBank(message.bankId).then(result => {
+                if (result.success) {
+                    notifyPopup(MSG.BANK_DELETED, { bankId: message.bankId });
+                }
+                sendResponse(result);
+            });
+            return true;
+
+        case 'MERGE_QUESTION_BANKS':
+            mergeQuestionBanks(message.mergeData).then(result => {
+                if (result.success) {
+                    notifyPopup(MSG.BANK_MERGED, {
+                        bank: result.bank,
+                        questionsAdded: result.questionsAdded,
+                        questionsUpdated: result.questionsUpdated
+                    });
+                }
+                sendResponse(result);
+            });
+            return true;
+
+        case 'EXPORT_QUESTION_BANKS':
+            exportQuestionBanks(message.bankIds).then(result => {
+                if (result.success) {
+                    // Trigger download
+                    const json = JSON.stringify(result.data, null, 2);
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    handleDownload('json', json, `question-banks-${timestamp}.json`);
+                }
+                sendResponse(result);
+            });
+            return true;
+
+        case 'IMPORT_QUESTION_BANKS':
+            importQuestionBanks(message.importData, message.testerName).then(result => {
+                sendResponse(result);
+            });
+            return true;
     }
 
     return false;
@@ -883,6 +953,390 @@ function urlMatchesPattern(url, pattern) {
     } catch {
         return false;
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QUESTION BANK STORAGE
+// Supports QA team collaboration - save, share, merge question banks
+// ═══════════════════════════════════════════════════════════════════════════
+
+function generateBankId() {
+    return 'bank_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+/**
+ * Save extracted Q&A to a named question bank
+ * @param {Object} bankData - { name, testerName, sourceUrl, tool, questions }
+ */
+async function saveQuestionBank(bankData) {
+    try {
+        const data = await chrome.storage.local.get('questionBanks');
+        const banks = data.questionBanks || {};
+
+        const bankId = bankData.id || generateBankId();
+        const now = new Date().toISOString();
+
+        // Transform questions to bank format with verification fields
+        const questions = (bankData.questions || []).map((q, qIndex) => ({
+            id: q.id || `q${qIndex + 1}`,
+            text: q.text || q.questionText || '',
+            type: q.type || q.questionType || 'choice',
+            verified: false,
+            verifiedBy: null,
+            verifiedAt: null,
+            tags: [],
+            notes: '',
+            answers: (q.answers || []).map((a, aIndex) => ({
+                id: a.id || `q${qIndex + 1}_a${aIndex + 1}`,
+                text: a.text || a.answerText || '',
+                isCorrect: a.isCorrect || a.correct || false,
+                probability: a.probability || (a.isCorrect ? 0.9 : 0.1),
+                verified: false,
+                verifiedBy: null,
+                tags: []
+            }))
+        }));
+
+        // Calculate summary stats
+        const summary = {
+            totalQuestions: questions.length,
+            verifiedQuestions: 0,
+            totalAnswers: questions.reduce((sum, q) => sum + q.answers.length, 0),
+            correctAnswers: questions.reduce((sum, q) => sum + q.answers.filter(a => a.isCorrect).length, 0),
+            verifiedCorrectAnswers: 0
+        };
+
+        banks[bankId] = {
+            id: bankId,
+            name: bankData.name || `Bank ${Object.keys(banks).length + 1}`,
+            createdAt: now,
+            updatedAt: now,
+            createdBy: bankData.testerName || 'Unknown',
+            sourceUrl: bankData.sourceUrl || '',
+            tool: bankData.tool || 'generic',
+            questions,
+            mergeHistory: [],
+            summary
+        };
+
+        await chrome.storage.local.set({ questionBanks: banks });
+        log.info(`Saved question bank: ${banks[bankId].name} (${bankId})`);
+
+        return { success: true, bankId, bank: banks[bankId] };
+    } catch (error) {
+        log.error('Failed to save question bank:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Get all question banks or a specific one
+ * @param {string} bankId - Optional specific bank ID
+ */
+async function getQuestionBanks(bankId = null) {
+    try {
+        const data = await chrome.storage.local.get('questionBanks');
+        const banks = data.questionBanks || {};
+
+        if (bankId) {
+            return banks[bankId] || null;
+        }
+        return banks;
+    } catch (error) {
+        log.error('Failed to get question banks:', error.message);
+        return bankId ? null : {};
+    }
+}
+
+/**
+ * Update verification status or tags for a question/answer
+ * @param {Object} updateData - { bankId, questionId, answerId?, verified, tags, notes, testerName }
+ */
+async function updateBankItem(updateData) {
+    try {
+        const data = await chrome.storage.local.get('questionBanks');
+        const banks = data.questionBanks || {};
+
+        const bank = banks[updateData.bankId];
+        if (!bank) {
+            return { success: false, error: 'Bank not found' };
+        }
+
+        const question = bank.questions.find(q => q.id === updateData.questionId);
+        if (!question) {
+            return { success: false, error: 'Question not found' };
+        }
+
+        const now = new Date().toISOString();
+
+        if (updateData.answerId) {
+            // Update specific answer
+            const answer = question.answers.find(a => a.id === updateData.answerId);
+            if (!answer) {
+                return { success: false, error: 'Answer not found' };
+            }
+
+            if (updateData.verified !== undefined) {
+                answer.verified = updateData.verified;
+                answer.verifiedBy = updateData.testerName || null;
+            }
+            if (updateData.tags) {
+                answer.tags = updateData.tags;
+            }
+            if (updateData.probability !== undefined) {
+                answer.probability = updateData.probability;
+            }
+        } else {
+            // Update question
+            if (updateData.verified !== undefined) {
+                question.verified = updateData.verified;
+                question.verifiedBy = updateData.testerName || null;
+                question.verifiedAt = updateData.verified ? now : null;
+            }
+            if (updateData.tags) {
+                question.tags = updateData.tags;
+            }
+            if (updateData.notes !== undefined) {
+                question.notes = updateData.notes;
+            }
+        }
+
+        // Recalculate summary
+        bank.summary.verifiedQuestions = bank.questions.filter(q => q.verified).length;
+        bank.summary.verifiedCorrectAnswers = bank.questions.reduce(
+            (sum, q) => sum + q.answers.filter(a => a.isCorrect && a.verified).length, 0
+        );
+        bank.updatedAt = now;
+
+        await chrome.storage.local.set({ questionBanks: banks });
+        log.info(`Updated bank item: ${updateData.bankId}/${updateData.questionId}`);
+
+        return { success: true, bank };
+    } catch (error) {
+        log.error('Failed to update bank item:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Delete a question bank
+ * @param {string} bankId
+ */
+async function deleteQuestionBank(bankId) {
+    try {
+        const data = await chrome.storage.local.get('questionBanks');
+        const banks = data.questionBanks || {};
+
+        if (!banks[bankId]) {
+            return { success: false, error: 'Bank not found' };
+        }
+
+        const bankName = banks[bankId].name;
+        delete banks[bankId];
+
+        await chrome.storage.local.set({ questionBanks: banks });
+        log.info(`Deleted question bank: ${bankName} (${bankId})`);
+
+        return { success: true };
+    } catch (error) {
+        log.error('Failed to delete question bank:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Merge questions from one bank into another
+ * Supports non-linear workflow - tester A creates bank, tester B merges in their findings
+ * @param {Object} mergeData - { targetBankId, sourceBankId, testerName, strategy }
+ */
+async function mergeQuestionBanks(mergeData) {
+    try {
+        const data = await chrome.storage.local.get('questionBanks');
+        const banks = data.questionBanks || {};
+
+        const target = banks[mergeData.targetBankId];
+        const source = banks[mergeData.sourceBankId];
+
+        if (!target) return { success: false, error: 'Target bank not found' };
+        if (!source) return { success: false, error: 'Source bank not found' };
+
+        const now = new Date().toISOString();
+        let questionsAdded = 0;
+        let questionsUpdated = 0;
+
+        // Merge strategy: 'add_new' | 'merge_all' | 'overwrite'
+        const strategy = mergeData.strategy || 'add_new';
+
+        for (const srcQuestion of source.questions) {
+            // Find matching question by text similarity
+            const existingQuestion = target.questions.find(q =>
+                normalizeText(q.text) === normalizeText(srcQuestion.text)
+            );
+
+            if (existingQuestion) {
+                if (strategy === 'merge_all' || strategy === 'overwrite') {
+                    // Merge verification status and tags
+                    if (srcQuestion.verified && !existingQuestion.verified) {
+                        existingQuestion.verified = true;
+                        existingQuestion.verifiedBy = srcQuestion.verifiedBy;
+                        existingQuestion.verifiedAt = srcQuestion.verifiedAt;
+                    }
+
+                    // Merge tags (unique)
+                    existingQuestion.tags = [...new Set([...existingQuestion.tags, ...srcQuestion.tags])];
+
+                    // Merge notes
+                    if (srcQuestion.notes && srcQuestion.notes !== existingQuestion.notes) {
+                        existingQuestion.notes = existingQuestion.notes
+                            ? `${existingQuestion.notes}\n---\n${srcQuestion.notes}`
+                            : srcQuestion.notes;
+                    }
+
+                    // Merge answer verification
+                    for (const srcAnswer of srcQuestion.answers) {
+                        const existingAnswer = existingQuestion.answers.find(a =>
+                            normalizeText(a.text) === normalizeText(srcAnswer.text)
+                        );
+                        if (existingAnswer) {
+                            if (srcAnswer.verified && !existingAnswer.verified) {
+                                existingAnswer.verified = true;
+                                existingAnswer.verifiedBy = srcAnswer.verifiedBy;
+                            }
+                            existingAnswer.tags = [...new Set([...existingAnswer.tags, ...srcAnswer.tags])];
+                            // Use higher probability
+                            if (srcAnswer.probability > existingAnswer.probability) {
+                                existingAnswer.probability = srcAnswer.probability;
+                            }
+                        }
+                    }
+                    questionsUpdated++;
+                }
+            } else {
+                // Add new question
+                const newQuestion = JSON.parse(JSON.stringify(srcQuestion));
+                newQuestion.id = `q${target.questions.length + 1}_merged`;
+                target.questions.push(newQuestion);
+                questionsAdded++;
+            }
+        }
+
+        // Record merge history
+        target.mergeHistory.push({
+            mergedFrom: mergeData.sourceBankId,
+            mergedFromName: source.name,
+            mergedAt: now,
+            mergedBy: mergeData.testerName || 'Unknown',
+            questionsAdded,
+            questionsUpdated,
+            strategy
+        });
+
+        // Recalculate summary
+        target.summary.totalQuestions = target.questions.length;
+        target.summary.verifiedQuestions = target.questions.filter(q => q.verified).length;
+        target.summary.totalAnswers = target.questions.reduce((sum, q) => sum + q.answers.length, 0);
+        target.summary.correctAnswers = target.questions.reduce((sum, q) => sum + q.answers.filter(a => a.isCorrect).length, 0);
+        target.summary.verifiedCorrectAnswers = target.questions.reduce(
+            (sum, q) => sum + q.answers.filter(a => a.isCorrect && a.verified).length, 0
+        );
+        target.updatedAt = now;
+
+        await chrome.storage.local.set({ questionBanks: banks });
+        log.info(`Merged banks: ${source.name} -> ${target.name} (added: ${questionsAdded}, updated: ${questionsUpdated})`);
+
+        return { success: true, questionsAdded, questionsUpdated, bank: target };
+    } catch (error) {
+        log.error('Failed to merge question banks:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Export question banks for sharing between testers
+ * @param {string[]} bankIds - Array of bank IDs to export (null = all)
+ */
+async function exportQuestionBanks(bankIds = null) {
+    try {
+        const banks = await getQuestionBanks();
+
+        let exportBanks;
+        if (bankIds && bankIds.length > 0) {
+            exportBanks = {};
+            for (const id of bankIds) {
+                if (banks[id]) {
+                    exportBanks[id] = banks[id];
+                }
+            }
+        } else {
+            exportBanks = banks;
+        }
+
+        return {
+            success: true,
+            data: {
+                version: '1.0',
+                schema: 'lms-qa-question-bank',
+                exportedAt: new Date().toISOString(),
+                bankCount: Object.keys(exportBanks).length,
+                banks: exportBanks
+            }
+        };
+    } catch (error) {
+        log.error('Failed to export question banks:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Import question banks from another tester
+ * @param {Object} importData - The exported banks object
+ * @param {string} testerName - Who is importing
+ */
+async function importQuestionBanks(importData, testerName = 'Unknown') {
+    try {
+        if (!importData?.banks || importData.schema !== 'lms-qa-question-bank') {
+            return { success: false, error: 'Invalid question bank format' };
+        }
+
+        const data = await chrome.storage.local.get('questionBanks');
+        const existingBanks = data.questionBanks || {};
+
+        let imported = 0;
+        let skipped = 0;
+        const now = new Date().toISOString();
+
+        for (const [bankId, bank] of Object.entries(importData.banks)) {
+            // Check if bank already exists
+            if (existingBanks[bankId]) {
+                // Skip if already exists - user should use merge explicitly
+                skipped++;
+                continue;
+            }
+
+            // Add import metadata
+            bank.importedAt = now;
+            bank.importedBy = testerName;
+            existingBanks[bankId] = bank;
+            imported++;
+        }
+
+        await chrome.storage.local.set({ questionBanks: existingBanks });
+        log.info(`Imported ${imported} question banks (skipped ${skipped} duplicates)`);
+
+        return { success: true, imported, skipped };
+    } catch (error) {
+        log.error('Failed to import question banks:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+// Helper: Normalize text for comparison
+function normalizeText(text) {
+    return (text || '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/[^\w\s]/g, '')
+        .trim();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

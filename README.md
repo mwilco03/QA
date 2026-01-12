@@ -1,10 +1,17 @@
-# LMS QA Validator v3.9.0
+# LMS QA Validator v4.0.0
 
-A Chrome extension for extracting Q&A content from Learning Management System (LMS) courses, detecting SCORM/xAPI APIs, and validating eLearning content.
+A Chrome extension for extracting Q&A content from Learning Management System (LMS) courses, detecting SCORM/xAPI APIs, and validating eLearning content with team collaboration features.
 
 ## Features
 
-### Multi-Tool Extractor Support (NEW in v3.9)
+### Question Banks - Team Collaboration (NEW in v4.0)
+- **Save Scan Results**: Save extracted Q&A to named question banks
+- **Verification System**: Mark questions as verified with tester name
+- **Export/Import**: Share banks between team members as JSON files
+- **Merge Banks**: Combine banks from different testers/courses
+- **Non-Linear Workflows**: Tester A creates bank, Tester B continues on different course
+
+### Multi-Tool Extractor Support (v3.9)
 - **Articulate Storyline**: Full extraction from slide data, accessibility DOM, and frame analysis
 - **Articulate Rise 360**: Knowledge blocks and quiz components
 - **Adobe Captivate**: Quiz data, DOM patterns, and cpInfoQuiz extraction
@@ -102,6 +109,35 @@ On return visits to the same LMS:
 1. Scan the page first (using either method)
 2. Click "Auto-Select Answers" in Quick Actions
 3. The extension will fill in all detected correct answers
+
+### Question Banks (Team Collaboration)
+
+**Creating a Bank:**
+1. Scan a page with Q&A content
+2. In "Question Banks" section, click "Save to Bank"
+3. Enter a name (e.g., "Safety Training Module 1")
+4. Optionally enter your tester name
+5. Click "Save Bank"
+
+**Sharing Banks with Team:**
+1. Click "Export Banks" to download all banks as JSON
+2. Share the file with team members
+3. They click "Import Banks" and select the file
+
+**Merging Banks (Non-Linear Workflow):**
+1. Tester A scans Course A, saves to Bank A
+2. Tester A exports Bank A
+3. Tester B imports Bank A
+4. Tester B scans Course B, saves to Bank B
+5. Tester B clicks "View Banks" → "Merge Banks"
+6. Select Bank A as source, Bank B as target
+7. Questions from A are merged into B with verification status preserved
+
+**Verifying Questions:**
+1. Click "View Banks" to open banks list
+2. Click "View" on a bank
+3. Check the "Verified" checkbox for questions you've confirmed
+4. Your tester name is recorded with the verification
 
 ### SCORM Controls
 When a SCORM API is detected:
@@ -301,6 +337,14 @@ LMS_QA_SELECTOR.extractWithSelectors('.q', '.a', '.correct')
 Open `tests/test-runner.html` in a browser to run unit tests.
 
 ## Version History
+
+### v4.0.0
+- **Question Banks**: Save extracted Q&A to named banks for team collaboration
+- **Bank Verification**: Mark questions as verified with tester attribution
+- **Export/Import Banks**: Share banks between team members as JSON
+- **Merge Banks**: Combine banks from multiple testers or courses
+- **Non-Linear Workflow Support**: Tester A creates bank, Tester B continues
+- **Verification Tags**: Track what's been verified (checkbox, button, dropdown)
 
 ### v3.9.0
 - **Captivate Extractor**: Adobe Captivate quiz extraction support
