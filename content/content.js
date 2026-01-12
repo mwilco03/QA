@@ -29,7 +29,13 @@
         APPLY_SELECTOR_RULE: 'APPLY_SELECTOR_RULE',
         DETECT_APIS: 'DETECT_APIS',
         GET_FRAME_INFO: 'GET_FRAME_INFO',
-        SEED_EXTRACT: 'SEED_EXTRACT'
+        SEED_EXTRACT: 'SEED_EXTRACT',
+        DETECT_FRAMEWORK: 'DETECT_FRAMEWORK',
+        // Objectives and slides completion
+        COMPLETE_OBJECTIVES: 'COMPLETE_OBJECTIVES',
+        MARK_SLIDES: 'MARK_SLIDES',
+        FULL_COMPLETION: 'FULL_COMPLETION',
+        ESTIMATE_DURATION: 'ESTIMATE_DURATION'
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -38,7 +44,14 @@
 
     let isInjected = false;
     let isSelectorInjected = false;
-    const isTopFrame = window === window.top;
+    // Use try/catch for cross-origin safety when checking window.top
+    let isTopFrame = true;
+    try {
+        isTopFrame = window === window.top;
+    } catch (e) {
+        // Cross-origin - assume we're in an iframe
+        isTopFrame = false;
+    }
     const frameId = Math.random().toString(36).substr(2, 9); // Unique ID for this frame
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -207,6 +220,7 @@
             sendToPage('CMD_SET_COMPLETION', {
                 status: message.status || 'completed',
                 score: message.score || 100,
+                sessionTime: message.sessionTime || 300,
                 apiIndex: message.apiIndex || 0
             });
             return { success: true };
@@ -336,6 +350,129 @@
             });
 
             return frameInfo;
+        },
+
+        [CMD.DETECT_FRAMEWORK]: () => {
+            // Quick framework detection without full scan
+            // Check for known framework signatures in the DOM
+            const detection = {
+                framework: null,
+                apis: [],
+                potentialQA: 0
+            };
+
+            try {
+                // Storyline detection
+                if (window.DS || window.g_slideData || window.JSON_PLAYER ||
+                    document.querySelector('#slide-window, .slide-container, [data-slide-id]')) {
+                    detection.framework = 'storyline';
+                    detection.potentialQA = document.querySelectorAll('[data-acc-text], .slide-object').length;
+                }
+                // Rise 360 detection
+                else if (document.querySelector('[data-ba-component]') ||
+                         document.querySelector('.blocks-container')) {
+                    detection.framework = 'rise';
+                    detection.potentialQA = document.querySelectorAll('[data-ba-component="KnowledgeBlock"], .block-quiz').length;
+                }
+                // Captivate detection
+                else if (window.cp || window.cpAPIInterface ||
+                         document.querySelector('[data-cpstate], #cpDocument')) {
+                    detection.framework = 'captivate';
+                }
+                // Lectora detection
+                else if (window.trivantis || window.TrivantisCore ||
+                         document.querySelector('[data-trivantis], .trivantis-content')) {
+                    detection.framework = 'lectora';
+                }
+                // iSpring detection
+                else if (window.iSpring || window.PresentationSettings ||
+                         document.querySelector('#ispringPlayerContainer, .ispring-player')) {
+                    detection.framework = 'ispring';
+                }
+
+                // Check for SCORM/xAPI APIs
+                const apiLocations = ['API', 'API_1484_11', 'API_ADAPTER'];
+                for (const name of apiLocations) {
+                    try {
+                        if (window[name] || window.parent?.[name] || window.top?.[name]) {
+                            detection.apis.push({ type: 'SCORM', location: name });
+                            break;
+                        }
+                    } catch (e) {
+                        // Cross-origin access denied - skip this location
+                    }
+                }
+
+                // Check for xAPI
+                if (window.ADL || document.querySelector('script[src*="xapi"]')) {
+                    detection.apis.push({ type: 'xAPI', location: 'ADL' });
+                }
+            } catch (e) {
+                log.debug('Framework detection error: ' + e.message);
+            }
+
+            return detection;
+        },
+
+        [CMD.COMPLETE_OBJECTIVES]: (message) => {
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_COMPLETE_OBJECTIVES', {
+                    status: message.status || 'passed',
+                    score: message.score || 100,
+                    apiIndex: message.apiIndex || 0
+                }), 100);
+            } else {
+                sendToPage('CMD_COMPLETE_OBJECTIVES', {
+                    status: message.status || 'passed',
+                    score: message.score || 100,
+                    apiIndex: message.apiIndex || 0
+                });
+            }
+            return { success: true };
+        },
+
+        [CMD.MARK_SLIDES]: (message) => {
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_MARK_SLIDES', {
+                    tool: message.tool || null,
+                    apiIndex: message.apiIndex || 0
+                }), 100);
+            } else {
+                sendToPage('CMD_MARK_SLIDES', {
+                    tool: message.tool || null,
+                    apiIndex: message.apiIndex || 0
+                });
+            }
+            return { success: true };
+        },
+
+        [CMD.FULL_COMPLETION]: (message) => {
+            const payload = {
+                status: message.status || 'passed',
+                score: message.score || 100,
+                sessionTime: message.sessionTime || 300,
+                tool: message.tool || null,
+                apiIndex: message.apiIndex || 0
+            };
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_FULL_COMPLETION', payload), 100);
+            } else {
+                sendToPage('CMD_FULL_COMPLETION', payload);
+            }
+            return { success: true };
+        },
+
+        [CMD.ESTIMATE_DURATION]: (message) => {
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_ESTIMATE_DURATION', {}), 100);
+            } else {
+                sendToPage('CMD_ESTIMATE_DURATION', {});
+            }
+            return { success: true };
         }
     };
 
