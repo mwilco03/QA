@@ -265,9 +265,11 @@
         </div>
         <div class="control-row time-row">
             <label class="time-label">Session Time:</label>
-            <input type="number" id="session-time-minutes" class="input input-sm" value="5" min="1" max="999" title="Minutes">
+            <input type="checkbox" id="session-time-auto" class="checkbox" checked title="Auto-estimate based on course content">
+            <label for="session-time-auto" class="auto-label">Auto</label>
+            <input type="number" id="session-time-minutes" class="input input-sm" value="5" min="1" max="999" title="Minutes" disabled>
             <span class="time-unit">min</span>
-            <span class="time-info" title="Client-reported time. Note: Some LMS track actual elapsed time server-side.">?</span>
+            <span id="time-estimate" class="time-estimate" title="Estimated from course content"></span>
         </div>
         <!-- Advanced Completion Options -->
         <div class="section-subheader">

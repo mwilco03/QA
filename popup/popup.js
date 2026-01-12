@@ -42,7 +42,8 @@
         // Objectives and slides completion
         OBJECTIVES_COMPLETE: 'OBJECTIVES_COMPLETE',
         SLIDES_MARKED: 'SLIDES_MARKED',
-        FULL_COMPLETION_RESULT: 'FULL_COMPLETION_RESULT'
+        FULL_COMPLETION_RESULT: 'FULL_COMPLETION_RESULT',
+        DURATION_ESTIMATE: 'DURATION_ESTIMATE'
     });
 
     const STATUS = Object.freeze({
@@ -210,7 +211,8 @@
             'search-container', 'search-input', 'search-count',
             'results-tabs', 'tab-panels', 'qa-list', 'apis-list', 'correct-list', 'logs-list',
             'qa-count', 'apis-count', 'correct-count', 'logs-count',
-            'scorm-controls', 'completion-status', 'completion-score', 'session-time-minutes',
+            'scorm-controls', 'completion-status', 'completion-score',
+            'session-time-minutes', 'session-time-auto', 'time-estimate',
             'btn-test-api', 'btn-set-completion', 'btn-copy-all-correct',
             'btn-complete-objectives', 'btn-mark-slides', 'btn-full-completion',
             'element-picker', 'btn-auto-select', 'btn-element-selector',
@@ -1190,10 +1192,14 @@
         },
 
         /**
-         * Get session time in seconds from UI input
-         * @returns {number} Session time in seconds (default 300 = 5 min)
+         * Get session time from UI input
+         * @returns {number|string} Session time in seconds, or 'auto' for estimation
          */
         _getSessionTimeSeconds() {
+            // If auto checkbox is checked, return 'auto' for estimation
+            if ($.sessionTimeAuto?.checked) {
+                return 'auto';
+            }
             const minutes = parseInt($.sessionTimeMinutes?.value || '5', 10);
             return Math.max(60, minutes * 60); // Minimum 1 minute
         },
@@ -1883,10 +1889,44 @@
             if (payload.success) {
                 const objMsg = payload.objectives ? `${payload.objectives.objectivesCompleted} objectives` : '';
                 const slideMsg = payload.slides ? `${payload.slides.slidesMarked} slides` : '';
-                const parts = [objMsg, slideMsg].filter(Boolean).join(', ');
-                Toast.success(`Full completion successful: ${parts || 'Course marked complete'}`);
+                const timeMsg = payload.sessionTimeUsed ? `${Math.round(payload.sessionTimeUsed / 60)}min` : '';
+                const parts = [objMsg, slideMsg, timeMsg].filter(Boolean).join(', ');
+                Toast.success(`Full completion: ${parts || 'Done'}`);
+
+                // Update time estimate display if we have estimation data
+                if (payload.sessionTimeEstimate && $.timeEstimate) {
+                    const est = payload.sessionTimeEstimate;
+                    $.timeEstimate.textContent = `~${Math.round(est.estimatedSeconds / 60)}min (${est.slideCount} slides)`;
+                }
             } else {
                 Toast.error('Full completion failed: ' + (payload.errors?.join(', ') || 'Unknown error'));
+            }
+        },
+
+        [MSG.DURATION_ESTIMATE]: (payload) => {
+            if ($.timeEstimate && payload) {
+                const minutes = Math.round(payload.randomizedSeconds / 60);
+                $.timeEstimate.textContent = `~${minutes}min`;
+                $.timeEstimate.title = `${payload.slideCount} slides, ${payload.quizCount || 0} quizzes (${payload.confidence})`;
+
+                // If manual time is set, validate it
+                if (!$.sessionTimeAuto?.checked && $.sessionTimeMinutes) {
+                    const manualSeconds = parseInt($.sessionTimeMinutes.value, 10) * 60;
+                    const minOk = payload.estimatedSeconds * 0.3;
+                    const maxOk = payload.estimatedSeconds * 2.5;
+
+                    if (manualSeconds < minOk) {
+                        $.timeEstimate.classList.add('error');
+                        $.timeEstimate.classList.remove('warning');
+                        $.timeEstimate.textContent = `Too short! ~${minutes}min`;
+                    } else if (manualSeconds < payload.estimatedSeconds * 0.5) {
+                        $.timeEstimate.classList.add('warning');
+                        $.timeEstimate.classList.remove('error');
+                        $.timeEstimate.textContent = `Low ~${minutes}min`;
+                    } else {
+                        $.timeEstimate.classList.remove('error', 'warning');
+                    }
+                }
             }
         },
 
@@ -1973,6 +2013,24 @@
         $.btnCompleteObjectives?.addEventListener('click', () => Actions.completeObjectives());
         $.btnMarkSlides?.addEventListener('click', () => Actions.markAllSlides());
         $.btnFullCompletion?.addEventListener('click', () => Actions.fullCompletion());
+
+        // Session time auto toggle
+        $.sessionTimeAuto?.addEventListener('change', (e) => {
+            if ($.sessionTimeMinutes) {
+                $.sessionTimeMinutes.disabled = e.target.checked;
+                if (e.target.checked && $.timeEstimate) {
+                    $.timeEstimate.classList.remove('error', 'warning');
+                }
+            }
+            // Request duration estimate to show
+            Extension.sendToContent('ESTIMATE_DURATION', {});
+        });
+
+        // Manual time input validation
+        $.sessionTimeMinutes?.addEventListener('change', () => {
+            // Request estimate to validate against
+            Extension.sendToContent('ESTIMATE_DURATION', {});
+        });
 
         // Quick copy
         $.btnCopyAllCorrect?.addEventListener('click', () => Actions.copyAllCorrect());

@@ -34,7 +34,8 @@
         // Objectives and slides completion
         COMPLETE_OBJECTIVES: 'COMPLETE_OBJECTIVES',
         MARK_SLIDES: 'MARK_SLIDES',
-        FULL_COMPLETION: 'FULL_COMPLETION'
+        FULL_COMPLETION: 'FULL_COMPLETION',
+        ESTIMATE_DURATION: 'ESTIMATE_DURATION'
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -463,6 +464,16 @@
                 setTimeout(() => sendToPage('CMD_FULL_COMPLETION', payload), 100);
             } else {
                 sendToPage('CMD_FULL_COMPLETION', payload);
+            }
+            return { success: true };
+        },
+
+        [CMD.ESTIMATE_DURATION]: (message) => {
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_ESTIMATE_DURATION', {}), 100);
+            } else {
+                sendToPage('CMD_ESTIMATE_DURATION', {});
             }
             return { success: true };
         }

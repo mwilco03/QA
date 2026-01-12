@@ -861,11 +861,31 @@ body {
     white-space: nowrap;
 }
 
+.time-row .checkbox {
+    width: 14px;
+    height: 14px;
+    margin: 0 2px;
+    cursor: pointer;
+}
+
+.time-row .auto-label {
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: var(--font-size-xs);
+    margin-right: var(--space-sm);
+}
+
 .time-row .input-sm {
-    width: 60px;
+    width: 55px;
     padding: 4px 6px;
     font-size: var(--font-size-xs);
     text-align: center;
+}
+
+.time-row .input-sm:disabled {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-muted);
+    cursor: not-allowed;
 }
 
 .time-unit {
@@ -873,23 +893,19 @@ body {
     font-size: var(--font-size-xs);
 }
 
-.time-info {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--color-bg-tertiary);
-    color: var(--color-text-muted);
-    font-size: 10px;
-    cursor: help;
+.time-estimate {
     margin-left: auto;
+    font-size: 10px;
+    color: var(--color-success);
+    font-weight: 500;
 }
 
-.time-info:hover {
-    background: var(--color-primary-light);
-    color: var(--color-primary);
+.time-estimate.warning {
+    color: var(--color-warning);
+}
+
+.time-estimate.error {
+    color: var(--color-error);
 }
 
 /* Quick Actions */
