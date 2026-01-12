@@ -22,164 +22,92 @@
         </div>
     </header>
 
-    <!-- Tab URL & Activation Status -->
-    <div class="tab-info">
-        <span class="tab-label">Page:</span>
-        <span id="tab-url" class="tab-url">Loading...</span>
-    </div>
-
-    <!-- Activation Gate Panel - Shows when not on LMS or no rules -->
-    <section id="activation-gate" class="activation-gate">
-        <div class="gate-icon">
+    <!-- PRIORITY 1: Quick Actions - ALWAYS VISIBLE -->
+    <section id="primary-actions" class="primary-actions">
+        <button id="btn-complete" class="btn btn-success btn-lg">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 16v-4M12 8h.01"/>
+                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                <path d="M22 4L12 14.01l-3-3"/>
             </svg>
-        </div>
-        <div class="gate-message">
-            <p id="gate-reason">Checking page...</p>
-        </div>
-        <div class="gate-actions">
-            <button id="btn-force-activate" class="btn btn-outline">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                </svg>
-                Activate Anyway
-            </button>
-            <button id="btn-import-rules-gate" class="btn btn-primary">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
-                </svg>
-                Import Rules
-            </button>
-        </div>
-    </section>
-
-    <!-- Framework Detection Panel - Shows after detection -->
-    <section id="framework-panel" class="framework-panel">
-        <div class="framework-header">
-            <div class="framework-icon" id="framework-icon">
+            Complete Course
+        </button>
+        <div class="action-row">
+            <button id="btn-scan" class="btn btn-primary">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                    <path d="M22 4L12 14.01l-3-3"/>
-                </svg>
-            </div>
-            <div class="framework-info">
-                <span class="framework-label">Detected Framework</span>
-                <span id="framework-name" class="framework-name">Scanning...</span>
-            </div>
-        </div>
-        <div id="framework-details" class="framework-details">
-            <!-- Will show detected APIs, potential Q&A count, etc -->
-        </div>
-        <div class="framework-actions">
-            <button id="btn-extract-qa" class="btn btn-primary">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                     <circle cx="11" cy="11" r="8"/>
                     <path d="M21 21l-4.35-4.35"/>
                 </svg>
-                Extract Q&A
+                Scan Q&A
             </button>
-            <button id="btn-complete-course" class="btn btn-success">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                    <path d="M22 4L12 14.01l-3-3"/>
+            <button id="btn-export-json" class="btn btn-outline">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
                 </svg>
-                Complete Course
-            </button>
-            <button id="btn-skip-detection" class="btn btn-outline btn-sm">
-                Skip
+                Export
             </button>
         </div>
     </section>
 
-    <!-- Main Actions - Only show when activated -->
-    <div id="main-actions" class="actions-primary">
-        <button id="btn-scan" class="btn btn-primary">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/>
-                <path d="M21 21l-4.35-4.35"/>
-            </svg>
-            Scan Page
-        </button>
-        <button id="btn-clear" class="btn btn-secondary">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-            </svg>
-            Clear
-        </button>
-    </div>
+    <!-- Status Panel - Shows detection status -->
+    <section id="status-panel" class="status-panel">
+        <div class="status-grid">
+            <div class="status-item" id="status-api">
+                <span class="status-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                </span>
+                <span class="status-label">API</span>
+                <span class="status-value" id="api-status">--</span>
+            </div>
+            <div class="status-item" id="status-framework">
+                <span class="status-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <path d="M3 9h18M9 21V9"/>
+                    </svg>
+                </span>
+                <span class="status-label">Framework</span>
+                <span class="status-value" id="framework-status">--</span>
+            </div>
+            <div class="status-item" id="status-questions">
+                <span class="status-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                </span>
+                <span class="status-label">Questions</span>
+                <span class="status-value" id="questions-status">--</span>
+            </div>
+            <div class="status-item" id="status-network">
+                <span class="status-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12.55a11 11 0 0114.08 0"/>
+                        <path d="M1.42 9a16 16 0 0121.16 0"/>
+                        <path d="M8.53 16.11a6 6 0 016.95 0"/>
+                        <line x1="12" y1="20" x2="12.01" y2="20"/>
+                    </svg>
+                </span>
+                <span class="status-label">Network</span>
+                <span class="status-value" id="network-status">--</span>
+            </div>
+        </div>
+    </section>
 
     <!-- Progress -->
     <div id="progress-container" class="progress-container">
         <div class="progress-bar">
             <div id="progress-fill" class="progress-fill"></div>
         </div>
-        <span id="progress-text" class="progress-text">Scanning...</span>
+        <span id="progress-text" class="progress-text">Processing...</span>
     </div>
 
-    <!-- Operation Feedback Panel - Shows during/after operations -->
-    <section id="operation-feedback" class="operation-feedback">
-        <div class="operation-header">
-            <span class="operation-icon" id="operation-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 6v6l4 2"/>
-                </svg>
-            </span>
-            <span id="operation-status" class="operation-status">Processing...</span>
-        </div>
-        <div id="operation-details" class="operation-details">
-            <!-- Step-by-step feedback -->
-        </div>
-        <div id="operation-result" class="operation-result">
-            <!-- Success/failure summary -->
-        </div>
-        <div class="operation-actions">
-            <button id="btn-retry-operation" class="btn btn-outline btn-sm">Retry</button>
-            <button id="btn-try-alternative" class="btn btn-outline btn-sm">Try Alternative</button>
-            <button id="btn-save-config" class="btn btn-primary btn-sm">Save as Quick Action</button>
-        </div>
-    </section>
-
-    <!-- Validation Warnings -->
-    <div id="validation-warnings" class="validation-warnings"></div>
-
-    <!-- Related Windows -->
-    <section id="related-windows" class="related-windows">
-        <div class="section-header">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="3" width="20" height="14" rx="2"/>
-                <path d="M8 21h8M12 17v4"/>
-            </svg>
-            <span>Related Windows</span>
-            <button id="btn-refresh-related" class="btn-icon" title="Refresh">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M23 4v6h-6M1 20v-6h6"/>
-                    <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-                </svg>
-            </button>
-        </div>
-        <div id="related-list" class="related-list"></div>
-    </section>
-
-    <!-- Quick Actions - Shows saved configurations -->
-    <section id="quick-actions-saved" class="quick-actions-saved">
-        <div class="section-header">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-            </svg>
-            <span>Quick Actions</span>
-            <span id="quick-actions-count" class="badge">0</span>
-        </div>
-        <div id="quick-actions-list" class="quick-actions-list">
-            <!-- Saved successful configurations -->
-        </div>
-    </section>
-
-    <!-- Search - Only show when results exist -->
+    <!-- Search -->
     <div id="search-container" class="search-container">
         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"/>
@@ -189,7 +117,7 @@
         <span id="search-count" class="search-count"></span>
     </div>
 
-    <!-- Results Tabs - Only show when results exist -->
+    <!-- Results Tabs -->
     <nav id="results-tabs" class="results-tabs">
         <button class="tab-btn active" data-tab="qa">
             Q&A <span id="qa-count" class="badge">0</span>
@@ -197,24 +125,26 @@
         <button class="tab-btn" data-tab="correct">
             Correct <span id="correct-count" class="badge">0</span>
         </button>
+        <button class="tab-btn" data-tab="network">
+            Network <span id="network-count" class="badge">0</span>
+        </button>
         <button class="tab-btn" data-tab="apis">
             APIs <span id="apis-count" class="badge">0</span>
-        </button>
-        <button class="tab-btn" data-tab="logs">
-            Logs <span id="logs-count" class="badge">0</span>
         </button>
     </nav>
 
     <!-- Tab Panels -->
     <div id="tab-panels" class="tab-panels">
+        <!-- Q&A Panel (DOM extracted) -->
         <div id="qa-panel" class="tab-panel active">
             <div id="qa-list" class="results-list">
-                <div class="empty-state">No Q&A found. Try scanning the page.</div>
+                <div class="empty-state">Click "Scan Q&A" to extract questions and answers.</div>
             </div>
         </div>
 
+        <!-- Correct Answers Panel -->
         <div id="correct-panel" class="tab-panel">
-            <div class="correct-actions">
+            <div class="panel-actions">
                 <button id="btn-copy-all-correct" class="btn btn-outline btn-sm" disabled>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                         <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -222,123 +152,123 @@
                     </svg>
                     Copy All
                 </button>
+                <button id="btn-auto-select" class="btn btn-success btn-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                        <path d="M22 4L12 14.01l-3-3"/>
+                    </svg>
+                    Auto-Select on Page
+                </button>
             </div>
             <div id="correct-list" class="results-list">
-                <div class="empty-state">No correct answers found.</div>
+                <div class="empty-state">No correct answers found yet.</div>
             </div>
         </div>
 
+        <!-- Network Panel (TasksExtractor data) -->
+        <div id="network-panel" class="tab-panel">
+            <div class="panel-actions">
+                <button id="btn-refresh-network" class="btn btn-outline btn-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <path d="M23 4v6h-6M1 20v-6h6"/>
+                        <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+            <div id="network-list" class="results-list">
+                <div class="empty-state">Monitoring network for tasks.json and xAPI statements...</div>
+            </div>
+        </div>
+
+        <!-- APIs Panel -->
         <div id="apis-panel" class="tab-panel">
             <div id="apis-list" class="results-list">
-                <div class="empty-state">No SCORM/xAPI detected.</div>
-            </div>
-        </div>
-
-        <div id="logs-panel" class="tab-panel">
-            <div id="logs-list" class="results-list logs-list">
-                <div class="empty-state">No logs yet.</div>
+                <div class="empty-state">No SCORM/xAPI APIs detected.</div>
             </div>
         </div>
     </div>
 
-    <!-- SCORM Controls - Only show when APIs detected -->
+    <!-- SCORM Controls - Shows when APIs detected -->
     <section id="scorm-controls" class="scorm-controls">
-        <div class="section-header">
+        <div class="section-header collapsed" id="scorm-header">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 2L2 7l10 5 10-5-10-5z"/>
                 <path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
             </svg>
-            <span>SCORM Controls</span>
+            <span>SCORM/xAPI Controls</span>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+            </svg>
         </div>
-        <div class="control-row">
-            <button id="btn-test-api" class="btn btn-outline">Test API</button>
-        </div>
-        <div class="control-row">
-            <select id="completion-status" class="select">
-                <option value="completed">Completed</option>
-                <option value="passed">Passed</option>
-                <option value="failed">Failed</option>
-                <option value="incomplete">Incomplete</option>
-            </select>
-            <input type="number" id="completion-score" class="input" value="100" min="0" max="100" title="Score (0-100)">
-            <button id="btn-set-completion" class="btn btn-accent">Set</button>
-        </div>
-        <div class="control-row time-row">
-            <label class="time-label">Session Time:</label>
-            <input type="checkbox" id="session-time-auto" class="checkbox" checked title="Auto-estimate based on course content">
-            <label for="session-time-auto" class="auto-label">Auto</label>
-            <input type="number" id="session-time-minutes" class="input input-sm" value="5" min="1" max="999" title="Minutes" disabled>
-            <span class="time-unit">min</span>
-            <span id="time-estimate" class="time-estimate" title="Estimated from course content"></span>
-        </div>
-        <!-- Advanced Completion Options -->
-        <div class="section-subheader">
-            <span>Full Course Completion</span>
-        </div>
-        <div class="control-row completion-advanced">
-            <button id="btn-complete-objectives" class="btn btn-outline btn-sm" title="Complete all SCORM objectives">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-                    <path d="M9 11l3 3L22 4"/>
-                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-                </svg>
-                Objectives
-            </button>
-            <button id="btn-mark-slides" class="btn btn-outline btn-sm" title="Mark all slides as viewed">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                    <path d="M8 21h8M12 17v4"/>
-                </svg>
-                Slides
-            </button>
-            <button id="btn-full-completion" class="btn btn-success btn-sm" title="Complete objectives + slides + status">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                    <path d="M22 4L12 14.01l-3-3"/>
-                </svg>
-                Full Complete
-            </button>
+        <div class="scorm-body" id="scorm-body">
+            <div class="control-row">
+                <select id="completion-status" class="select">
+                    <option value="passed">Passed</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                </select>
+                <input type="number" id="completion-score" class="input" value="100" min="0" max="100" title="Score">
+                <span class="input-suffix">%</span>
+            </div>
+            <div class="control-row">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="session-time-auto" checked>
+                    Auto time
+                </label>
+                <input type="number" id="session-time-minutes" class="input input-sm" value="15" min="1" disabled>
+                <span class="input-suffix">min</span>
+            </div>
+            <div class="control-row actions">
+                <button id="btn-test-api" class="btn btn-outline btn-sm">Test API</button>
+                <button id="btn-set-completion" class="btn btn-outline btn-sm">Set Status</button>
+                <button id="btn-full-completion" class="btn btn-success btn-sm">Full Complete</button>
+            </div>
         </div>
     </section>
 
-    <!-- Quick Actions -->
-    <section id="quick-actions" class="quick-actions">
-        <div class="section-header">
+    <!-- Related Windows (collapsed by default) -->
+    <section id="related-windows" class="related-windows collapsed">
+        <div class="section-header" id="related-header">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                <path d="M8 21h8M12 17v4"/>
             </svg>
-            <span>Quick Actions</span>
+            <span>Related Windows</span>
+            <span id="related-count" class="badge">0</span>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+            </svg>
         </div>
-        <button id="btn-auto-select" class="btn btn-success full-width">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                <path d="M22 4L12 14.01l-3-3"/>
-            </svg>
-            Auto-Select Answers
-        </button>
+        <div class="related-body" id="related-body">
+            <div id="related-list" class="related-list"></div>
+        </div>
     </section>
 
-
-    <!-- Export Actions - Only show when results exist -->
-    <section id="export-actions" class="export-actions">
-        <div class="section-header">
+    <!-- Export Options (collapsed) -->
+    <section id="export-section" class="export-section collapsed">
+        <div class="section-header" id="export-header">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
                 <polyline points="7 10 12 15 17 10"/>
                 <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
-            <span>Export Results</span>
+            <span>Export Options</span>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+            </svg>
         </div>
-        <div class="export-buttons">
-            <button id="btn-export-json" class="btn btn-outline">JSON</button>
-            <button id="btn-export-csv" class="btn btn-outline">CSV</button>
-            <button id="btn-export-txt" class="btn btn-outline">TXT</button>
+        <div class="export-body" id="export-body">
+            <button id="btn-export-csv" class="btn btn-outline btn-sm">CSV</button>
+            <button id="btn-export-txt" class="btn btn-outline btn-sm">TXT</button>
+            <button id="btn-clear" class="btn btn-outline btn-sm">Clear All</button>
         </div>
     </section>
 
     <!-- Footer -->
     <footer class="footer">
-        <span class="version">v5.0</span>
-        <span class="shortcuts">Ctrl+R: Scan | Ctrl+F: Search | Ctrl+E: Export</span>
+        <span class="version">v6.0</span>
+        <span id="tab-url" class="tab-url" title="Current page"></span>
     </footer>
 
     <!-- Toast -->
