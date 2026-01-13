@@ -1,0 +1,19 @@
+{
+  "name": "lms-qa-validator",
+  "version": "6.1.0",
+  "description": "Chrome extension for LMS content extraction and validation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c --watch",
+    "build:prod": "rollup -c --environment BUILD:production"
+  },
+  "devDependencies": {
+    "rollup": "^4.9.0",
+    "@rollup/plugin-terser": "^0.4.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

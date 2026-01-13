@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build outputs (generated from /src)
+# Uncomment these if you want to exclude built files from git
+# lib/lms-qa-validator.js
+# lib/tasks-extractor.js
+
+# Source maps
+*.map
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+.idea/
+.vscode/
+*.sublime-*
+
+# Logs
+*.log
+npm-debug.log*
