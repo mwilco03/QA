@@ -1,0 +1,91 @@
+name: Build Extension
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (development)
+        run: npm run build
+
+      - name: Build (production)
+        run: npm run build:prod
+
+      - name: Show build stats
+        run: |
+          echo "=== Build Output ==="
+          wc -l lib/*.js
+          ls -lh lib/*.js
+
+      - name: Upload extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lms-qa-validator-${{ github.sha }}
+          path: |
+            manifest.json
+            lib/
+            popup/
+            content/
+            background/
+            icons/
+            README.md
+          retention-days: 30
+
+  # Create release zip on tagged releases
+  release:
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install and build
+        run: |
+          npm ci
+          npm run build:prod
+
+      - name: Create release zip
+        run: |
+          zip -r lms-qa-validator-${{ github.event.release.tag_name }}.zip \
+            manifest.json \
+            lib/ \
+            popup/ \
+            content/ \
+            background/ \
+            icons/ \
+            README.md
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: lms-qa-validator-${{ github.event.release.tag_name }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
