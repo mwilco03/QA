@@ -204,7 +204,7 @@ For environments where browser extensions are controlled/restricted, use the sta
 | Script | Purpose |
 |--------|---------|
 | `lib/lms-extractor-complete.js` | All-in-one SCORM/TLA/Storyline extractor |
-| `lib/UKI.js` | Storyline-specific extractor |
+| `lib/storyline-console-extractor.js` | Storyline-specific extractor |
 | `lib/tla-completion-helper.js` | TLA/xAPI platform helper |
 | `lib/unified-qa-extractor.js` | Multi-format extraction |
 | `lib/storyline-data-extractor.js` | Storyline _data.js parser (CLI + browser) |
@@ -232,7 +232,7 @@ lms-qa-validator/
 │   ├── tla-completion-helper.js   # Console: TLA/xAPI
 │   ├── unified-qa-extractor.js    # Console: Multi-format
 │   ├── storyline-data-extractor.js # CLI + Console: Storyline
-│   ├── UKI.js                # Console: Storyline extractor
+│   ├── storyline-console-extractor.js                # Console: Storyline extractor
 │   ├── tasks-extractor.js    # Network interceptor
 │   └── tla-player-bundle.js  # TLA player (4MB)
 ├── popup/

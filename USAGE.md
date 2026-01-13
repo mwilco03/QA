@@ -34,7 +34,7 @@ LMSExtractor.download('json')
 
 **Option 1: Browser Console**
 ```javascript
-// Paste lib/UKI.js into console, then:
+// Paste lib/storyline-console-extractor.js into console, then:
 StorylineExtractor.run()
 ```
 
@@ -148,7 +148,7 @@ console.log(UnifiedQAExtractor.export(correct, 'text'));
 | `lib/unified-qa-extractor.js` | Multi-format Q&A extraction |
 | `lib/storyline-data-extractor.js` | Storyline _data.js parser (CLI) |
 | `lib/tla-completion-helper.js` | TLA/xAPI API interaction |
-| `lib/UKI.js` | Storyline browser console extractor |
+| `lib/storyline-console-extractor.js` | Storyline browser console extractor |
 | `lib/tasks-extractor.js` | Network interceptor for xAPI |
 
 ---
