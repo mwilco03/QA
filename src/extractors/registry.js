@@ -12,14 +12,15 @@ const extractors = new Map();
 export const ExtractorRegistry = {
     /**
      * Register an extractor
+     * @param {string} toolId - Tool identifier from AUTHORING_TOOL
      * @param {Object} extractor - Extractor instance with detect/extract methods
      */
-    register(extractor) {
-        if (!extractor.toolId) {
+    register(toolId, extractor) {
+        if (!toolId) {
             throw new Error('Extractor must have toolId');
         }
-        extractors.set(extractor.toolId, extractor);
-        Logger.debug(`Registered extractor: ${extractor.toolId}`);
+        extractors.set(toolId, extractor);
+        Logger.debug(`Registered extractor: ${toolId}`);
     },
 
     /**
@@ -32,25 +33,17 @@ export const ExtractorRegistry = {
     },
 
     /**
-     * Detect which extractor(s) can handle current page
-     * @returns {Array<Object>} Array of matching extractors
+     * Alias for get (for compatibility)
      */
-    detectAll() {
-        const matches = [];
-        for (const [id, extractor] of extractors) {
-            if (extractor.detect()) {
-                matches.push(extractor);
-            }
-        }
-        return matches;
+    getExtractor(toolId) {
+        return this.get(toolId);
     },
 
     /**
-     * Detect primary extractor for current page
-     * @returns {Object|null}
+     * Detect which tool created the current page
+     * @returns {string|null} Tool ID or null
      */
-    detectPrimary() {
-        // Check in order of specificity
+    detectTool() {
         const priority = [
             AUTHORING_TOOL.STORYLINE,
             AUTHORING_TOOL.RISE,
@@ -62,12 +55,58 @@ export const ExtractorRegistry = {
 
         for (const toolId of priority) {
             const extractor = extractors.get(toolId);
-            if (extractor?.detect()) {
-                return extractor;
+            try {
+                if (extractor?.detect?.()) {
+                    Logger.info(`Detected authoring tool: ${toolId}`);
+                    return toolId;
+                }
+            } catch (e) {
+                Logger.debug(`Detection error for ${toolId}: ${e.message}`);
             }
         }
 
         return null;
+    },
+
+    /**
+     * Detect which extractor(s) can handle current page
+     * @returns {Array<Object>} Array of matching extractors with toolIds
+     */
+    detectAll() {
+        const matches = [];
+        for (const [toolId, extractor] of extractors) {
+            try {
+                if (extractor.detect?.()) {
+                    matches.push({ toolId, extractor });
+                }
+            } catch (e) {
+                Logger.debug(`Detection error for ${toolId}: ${e.message}`);
+            }
+        }
+        return matches;
+    },
+
+    /**
+     * Extract using specific tool
+     * @param {string} toolId - Tool identifier
+     * @returns {Promise<Array>} Extracted items
+     */
+    async extract(toolId) {
+        const extractor = extractors.get(toolId);
+        if (!extractor) {
+            Logger.warn(`No extractor registered for: ${toolId}`);
+            return [];
+        }
+
+        try {
+            Logger.info(`Running ${toolId} extractor`);
+            const items = await extractor.extract();
+            Logger.info(`${toolId} extracted ${items?.length || 0} items`);
+            return items || [];
+        } catch (e) {
+            Logger.error(`${toolId} extraction error: ${e.message}`);
+            return [];
+        }
     },
 
     /**
@@ -79,9 +118,15 @@ export const ExtractorRegistry = {
         Logger.info(`Found ${matches.length} matching extractors`);
 
         const results = [];
-        for (const extractor of matches) {
-            const items = await extractor.extract();
-            results.push(...items);
+        for (const { toolId, extractor } of matches) {
+            try {
+                const items = await extractor.extract();
+                if (items?.length) {
+                    results.push(...items);
+                }
+            } catch (e) {
+                Logger.error(`${toolId} extraction error: ${e.message}`);
+            }
         }
 
         return results;
