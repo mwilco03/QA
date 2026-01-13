@@ -146,10 +146,67 @@ console.log(UnifiedQAExtractor.export(correct, 'text'));
 |------|---------|
 | `lib/lms-extractor-complete.js` | All-in-one browser script |
 | `lib/unified-qa-extractor.js` | Multi-format Q&A extraction |
-| `lib/storyline-data-extractor.js` | Storyline _data.js parser (CLI) |
+| `lib/storyline-data-extractor.js` | Storyline _data.js parser (CLI + browser) |
 | `lib/tla-completion-helper.js` | TLA/xAPI API interaction |
 | `lib/storyline-console-extractor.js` | Storyline browser console extractor |
-| `lib/tasks-extractor.js` | Network interceptor for xAPI |
+
+---
+
+## Magic Strings Reference
+
+### SCORM CMI Paths
+
+| Path | Description | Values |
+|------|-------------|--------|
+| `cmi.interactions._count` | Number of recorded interactions | Integer |
+| `cmi.interactions.n.id` | Interaction identifier | String (e.g., `Scene1_Slide3_MultiChoice_0_0`) |
+| `cmi.interactions.n.type` | Question type | `choice`, `fill-in`, `matching`, `sequencing`, `true-false` |
+| `cmi.interactions.n.correct_responses.0.pattern` | Correct answer pattern | See patterns below |
+| `cmi.score.raw` | Raw score (SCORM 2004) | `0` to `100` |
+| `cmi.score.scaled` | Normalized score (SCORM 2004) | `0.0` to `1.0` |
+| `cmi.completion_status` | Completion state (SCORM 2004) | `completed`, `incomplete`, `not attempted`, `unknown` |
+| `cmi.success_status` | Pass/fail state (SCORM 2004) | `passed`, `failed`, `unknown` |
+| `cmi.core.score.raw` | Raw score (SCORM 1.2) | `0` to `100` |
+| `cmi.core.lesson_status` | Status (SCORM 1.2) | `passed`, `completed`, `failed`, `incomplete`, `browsed`, `not attempted` |
+
+### SCORM Correct Response Patterns
+
+| Type | Pattern | Example | Meaning |
+|------|---------|---------|---------|
+| **Multiple Choice** | `choice_id` | `choice_6hxuGb1bgrV` | Single correct choice ID |
+| **Multiple Select** | `id1[,]id2[,]id3` | `choice_a[,]choice_b` | Multiple correct IDs, `[,]` delimiter |
+| **Fill-in** | `{case_matters=bool}text` | `{case_matters=false}Paris` | Text answer, case sensitivity flag |
+| **Matching** | `src[.]tgt[,]src[.]tgt` | `1[.]A[,]2[.]B[,]3[.]C` | Source-target pairs, `[.]` joins pair, `[,]` separates pairs |
+| **Sequencing** | `item1[,]item2[,]item3` | `First[,]Second[,]Third` | Correct order, `[,]` delimiter |
+| **True/False** | `true` or `false` | `true` | Boolean value |
+
+### TLA/xAPI Identifiers
+
+| Identifier | Format | Example |
+|------------|--------|---------|
+| Session ID | UUID in URL path | `/sessions/12345678-1234-1234-1234-123456789abc` |
+| Content URL | Query parameter | `?contentUrl=https://cdn.example.com/course/` |
+| Activity ID | IRI | `https://lms.example.com/activities/course-123` |
+| Actor (learner) | mbox or account | `mailto:user@example.com` or `{"account": {...}}` |
+
+### Storyline Internal IDs
+
+| Pattern | Description | Example |
+|---------|-------------|---------|
+| `Scene#_Slide#_*` | Interaction ID format | `Scene1_Slide5_MultiChoice_0_0` |
+| `choice_*` | Answer choice ID | `choice_6hxuGb1bgrV` |
+| `5VrXXXXXXXX` | Base62 object ID | `5VrzS9H9fWq` |
+| `_player.###########` | Player variable | `_player.5VrzS9H9fWq` |
+
+### xAPI Statement Verbs
+
+| Verb IRI | Meaning |
+|----------|---------|
+| `http://adlnet.gov/expapi/verbs/completed` | Learner finished activity |
+| `http://adlnet.gov/expapi/verbs/passed` | Learner passed assessment |
+| `http://adlnet.gov/expapi/verbs/failed` | Learner failed assessment |
+| `http://adlnet.gov/expapi/verbs/answered` | Learner answered question |
+| `http://adlnet.gov/expapi/verbs/experienced` | Learner accessed content |
 
 ---
 
