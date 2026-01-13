@@ -1,169 +1,172 @@
-# LMS Q&A Extraction & Completion Tools
+# LMS QA Validator - Usage Guide
 
 ## Quick Start
 
-### Browser Console Method (Easiest)
+### Chrome Extension (Recommended)
 
-1. Open your LMS course in a browser
-2. Press `F12` to open Developer Tools
-3. Go to the **Console** tab
-4. Paste the contents of `lib/lms-extractor-complete.js`
-5. Run commands:
+1. Load the extension in Chrome (`chrome://extensions/` → Developer mode → Load unpacked)
+2. Navigate to any LMS course page
+3. Click the extension icon
+4. Click **"Scan Page"** to auto-detect and extract Q&A
+
+### Browser Console API
+
+The extension exposes a global `LMS_QA` object in the page context:
 
 ```javascript
-// Extract all questions and answers
-await LMSExtractor.extract()
+// Run a scan
+await LMS_QA.scan()
 
-// View correct answers only
-LMSExtractor.getCorrectAnswers()
+// Get extracted Q&A
+LMS_QA.getQA()
 
-// Mark course as complete
-await LMSExtractor.complete(100)  // 100 = score
+// Get correct answers only
+LMS_QA.getQA().filter(q => q.isCorrect)
 
-// Download results
-LMSExtractor.download('json')
+// Auto-select correct answers in forms
+LMS_QA.autoSelect()
+
+// Export results
+LMS_QA.export('json')   // Structured format
+LMS_QA.export('csv')    // Spreadsheet format
+LMS_QA.export('txt')    // Human-readable
+
+// SCORM API operations
+LMS_QA.testAPI(0)
+LMS_QA.setCompletion({ status: 'completed', score: 100 })
+LMS_QA.forceCompletion({ score: 100 })
 ```
 
 ---
 
-## Extraction Methods by Content Type
+## Extraction by Content Type
 
-### Articulate Storyline Courses
+### Articulate Storyline
 
-**Option 1: Browser Console**
+The extension auto-detects Storyline courses and extracts from:
+- `globalProvideData('slide', ...)` structures
+- Accessibility DOM (`.acc-shadow-dom`)
+- Frame analysis
+
 ```javascript
-// Paste lib/UKI.js into console, then:
-StorylineExtractor.run()
+// Check if current page is Storyline
+LMS_QA.isStorylinePage()
+
+// Get Storyline-specific DOM data
+LMS_QA.getStorylineDOM()
 ```
 
-**Option 2: From _data.js file**
-```bash
-# If you have access to course files:
-node lib/storyline-data-extractor.js path/to/_data.js
+### Articulate Rise 360
 
-# Search for specific question:
-node lib/storyline-data-extractor.js _data.js "HAS-1.2.3"
-```
+Detected via `[data-ba-component]` attributes. Extracts from:
+- Knowledge blocks
+- Quiz components
 
-**Option 3: API**
-```javascript
-// In Node.js or browser:
-const extractor = require('./lib/unified-qa-extractor.js');
-const questions = extractor.extractFromDataJS(dataJsContent);
-console.log(extractor.export(questions, 'text'));
-```
+### Adobe Captivate
+
+Detected via `cp.*` globals. Extracts from:
+- Quiz data structures
+- DOM patterns
+- cpInfoQuiz
+
+### Lectora / iSpring
+
+Auto-detected and extracted using tool-specific patterns.
 
 ---
 
-### TLA/xAPI Content
+## SCORM/xAPI Operations
 
-**Extract Questions:**
+### Detect APIs
 ```javascript
-// Browser console on TLA course:
-const contentUrl = new URLSearchParams(location.search).get('contentUrl');
-const resp = await fetch(`/api/assets/tasks.json?contentUrl=${contentUrl}`);
-const tasks = await resp.json();
+// Get all detected APIs
+LMS_QA.getAPIs()
 
-// Parse with helper:
-// Paste lib/tla-completion-helper.js first
-const questions = TLAHelper.extractFromTasksJson(tasks);
-console.log(TLAHelper.exportQuestions(questions, 'text'));
+// Test specific API
+LMS_QA.testAPI(0)  // Test first detected API
 ```
 
-**Complete Course:**
+### Set Completion
 ```javascript
-// Get session ID from URL (format: /sessions/xx-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-const sessionId = location.pathname.match(/sessions\/([^\/]+)/)?.[1];
+// Mark course complete with score
+LMS_QA.setCompletion({ status: 'completed', score: 100 })
 
-// Submit answers and complete
-await TLAHelper.autoComplete(sessionId, contentUrl);
+// Force completion (bypasses normal flow)
+await LMS_QA.forceCompletion({ score: 100 })
 ```
 
----
-
-### SCORM Content
-
-**Extract Interaction Data:**
+### Direct SCORM Access
 ```javascript
-// Browser console:
-const api = window.API || window.API_1484_11;
-const count = parseInt(api.GetValue('cmi.interactions._count'));
-
-for (let i = 0; i < count; i++) {
-    console.log({
-        id: api.GetValue(`cmi.interactions.${i}.id`),
-        type: api.GetValue(`cmi.interactions.${i}.type`),
-        correct: api.GetValue(`cmi.interactions.${i}.correct_responses.0.pattern`)
-    });
-}
-```
-
-**Complete Course:**
-```javascript
-// SCORM 2004:
-api.SetValue('cmi.score.raw', '100');
-api.SetValue('cmi.score.scaled', '1.0');
+// SCORM 2004
+const api = window.API_1484_11;
 api.SetValue('cmi.completion_status', 'completed');
 api.SetValue('cmi.success_status', 'passed');
+api.SetValue('cmi.score.scaled', '1.0');
 api.Commit();
 
-// SCORM 1.2:
-api.LMSSetValue('cmi.core.score.raw', '100');
+// SCORM 1.2
+const api = window.API;
 api.LMSSetValue('cmi.core.lesson_status', 'passed');
+api.LMSSetValue('cmi.core.score.raw', '100');
 api.LMSCommit('');
 ```
 
 ---
 
-## Question Types & Patterns
+## Question Types
 
-### How Correct Answers Are Stored
+| Type | Detection | Storage Format |
+|------|-----------|----------------|
+| Multiple Choice | Radio buttons | `choice_id` |
+| Multiple Select | Checkboxes | `id1[,]id2` |
+| Fill-in-the-Blank | Text inputs | `{case_matters=bool}answer` |
+| Matching | Drag-drop pairs | `src[.]tgt[,]src[.]tgt` |
+| Sequencing | Ordered lists | `item1[,]item2[,]item3` |
+| True/False | Boolean choice | `true` or `false` |
 
-| Type | Storage Format | Example |
-|------|---------------|---------|
-| Multiple Choice | `choice_id` | `choice_abc123` |
-| Multiple Select | `id1[,]id2` | `choice_a[,]choice_b` |
-| Fill-in | `{case_matters=bool}answer` | `{case_matters=false}Paris` |
-| Matching | `src[.]tgt[,]src[.]tgt` | `A[.]1[,]B[.]2` |
-| Sequencing | `item1[,]item2[,]item3` | `First[,]Second[,]Third` |
-| True/False | `true` or `false` | `true` |
+---
 
-### Parsing Correct Patterns
-```javascript
-// Use the unified extractor:
-const parsed = UnifiedQAExtractor.extract(data);
-const correct = UnifiedQAExtractor.getCorrectAnswers(parsed);
-console.log(UnifiedQAExtractor.export(correct, 'text'));
+## Export Formats
+
+### JSON (Automation)
+```json
+{
+  "version": "1.0",
+  "source": { "url": "...", "tool": "storyline" },
+  "summary": { "totalQuestions": 10, "correctAnswers": 10 },
+  "questions": [...],
+  "answerKey": [...]
+}
+```
+
+### CSV (Spreadsheets)
+```
+QuestionNumber,QuestionText,AnswerText,IsCorrect
+1,"What is 2+2?","4",true
+```
+
+### TXT (Human-readable)
+```
+Q1: What is 2+2?
+  A: 3
+  A: 4 [CORRECT]
 ```
 
 ---
 
-## Files Reference
-
-| File | Purpose |
-|------|---------|
-| `lib/lms-extractor-complete.js` | All-in-one browser script |
-| `lib/unified-qa-extractor.js` | Multi-format Q&A extraction |
-| `lib/storyline-data-extractor.js` | Storyline _data.js parser (CLI) |
-| `lib/tla-completion-helper.js` | TLA/xAPI API interaction |
-| `lib/UKI.js` | Storyline browser console extractor |
-| `lib/tasks-extractor.js` | Network interceptor for xAPI |
-
----
-
-## Output Formats
-
-All tools support multiple export formats:
+## Debugging
 
 ```javascript
-// JSON (default)
-extractor.export(questions, 'json')
+// View internal state
+LMS_QA.getState()
 
-// Human-readable text
-extractor.export(questions, 'text')
+// View logs
+LMS_QA.getLogs()
 
-// CSV for spreadsheets
-extractor.export(questions, 'csv')
+// Access internal modules
+LMS_QA._debug.StateManager
+LMS_QA._debug.ExtractorRegistry
+LMS_QA._debug.SCORMAPI
 ```
 
 ---
@@ -172,16 +175,13 @@ extractor.export(questions, 'csv')
 
 ### "No SCORM API found"
 - Course may use non-standard API location
-- Try: `window.parent.API` or search frames manually
-
-### "No session ID found" (TLA)
-- Check URL for `/sessions/` path segment
-- Session may have expired - reload course
+- Try: `window.parent.API` or search frames
 
 ### Cross-origin errors
 - Content in iframe from different domain
-- Need to access from within the correct frame context
+- Access from within the correct frame context
 
 ### Questions not extracting
 - Course may use encrypted/obfuscated data
 - Try network tab to intercept API responses
+- Check `LMS_QA.getLogs()` for extraction errors
