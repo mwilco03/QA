@@ -38,13 +38,13 @@ LMSExtractor.download('json')
 StorylineExtractor.run()
 ```
 
-**Option 2: From _data.js file**
+**Option 2: From data files (CLI)**
 ```bash
 # If you have access to course files:
-node lib/storyline-data-extractor.js path/to/_data.js
+node lib/storyline-data-extractor.js ./html5/data/js/data.js
 
 # Search for specific question:
-node lib/storyline-data-extractor.js _data.js "HAS-1.2.3"
+node lib/storyline-data-extractor.js ./data.js "HAS-1.2.3"
 ```
 
 **Option 3: API**
@@ -146,7 +146,7 @@ console.log(UnifiedQAExtractor.export(correct, 'text'));
 |------|---------|
 | `lib/lms-extractor-complete.js` | All-in-one browser script |
 | `lib/unified-qa-extractor.js` | Multi-format Q&A extraction |
-| `lib/storyline-data-extractor.js` | Storyline _data.js parser (CLI) |
+| `lib/storyline-data-extractor.js` | Storyline data parser with dynamic discovery |
 | `lib/tla-completion-helper.js` | TLA/xAPI API interaction |
 | `lib/storyline-console-extractor.js` | Storyline browser console extractor |
 | `lib/tasks-extractor.js` | Network interceptor for xAPI |

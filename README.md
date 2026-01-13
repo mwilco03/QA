@@ -26,7 +26,7 @@ For the Chrome extension version, see the [`extension` branch](../../tree/extens
 | `lib/storyline-console-extractor.js` | Articulate Storyline extractor | `StorylineExtractor` |
 | `lib/tla-completion-helper.js` | TLA/xAPI platform helper | `TLAHelper` |
 | `lib/unified-qa-extractor.js` | Multi-format Q&A extraction | `UnifiedQAExtractor` |
-| `lib/storyline-data-extractor.js` | Storyline _data.js parser (CLI + browser) | `StorylineDataExtractor` |
+| `lib/storyline-data-extractor.js` | Storyline data parser with dynamic discovery | `StorylineDataExtractor` |
 
 ---
 
@@ -111,21 +111,22 @@ console.log(UnifiedQAExtractor.export(correct, 'csv'));
 
 ### storyline-data-extractor.js (CLI + Browser)
 
-Parse Storyline `_data.js` files directly.
+Dynamic discovery and extraction from Storyline courses.
 
 **Browser Console:**
 ```javascript
 // Paste lib/storyline-data-extractor.js into console, then:
-StorylineDataExtractor.run()
+await StorylineDataExtractor.run()
+// Results in window.allQA
 ```
 
 **Node.js CLI:**
 ```bash
-# Parse a _data.js file
-node lib/storyline-data-extractor.js path/to/_data.js
+# Parse a data file with globalProvideData
+node lib/storyline-data-extractor.js ./html5/data/js/data.js
 
 # Search for specific question
-node lib/storyline-data-extractor.js _data.js "HAS-1.2.3"
+node lib/storyline-data-extractor.js ./data.js "HAS-1.2.3"
 ```
 
 ---

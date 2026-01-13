@@ -352,9 +352,9 @@ UnifiedQAExtractor.download(correct, 'json')`
             {
                 name: 'storyline-data-extractor.js',
                 displayName: 'Storyline Data Parser',
-                description: 'Parse Storyline _data.js files (Browser + Node.js CLI)',
-                api: `StorylineDataExtractor.run()
-// CLI: node lib/storyline-data-extractor.js path/to/_data.js`
+                description: 'Dynamic discovery and extraction from Storyline courses',
+                api: `await StorylineDataExtractor.run()
+// CLI: node lib/storyline-data-extractor.js ./data.js`
             }
         ];
 
