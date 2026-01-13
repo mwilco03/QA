@@ -12,6 +12,10 @@ For the Chrome extension version, see the [`extension` branch](../../tree/extens
 4. Paste the contents of the appropriate script
 5. Run commands as documented below
 
+**For persistent setup**, see [Browser Setup Guide](docs/BROWSER-SETUP.md) to save scripts as browser snippets.
+
+**Quick install:** Open [`install.html`](install.html) in your browser for easy copy-to-clipboard installation.
+
 ## Available Scripts
 
 | Script | Purpose | API |
@@ -212,6 +216,16 @@ extractor.export(questions, 'csv')
 ### Questions not extracting
 - Course may use encrypted/obfuscated data
 - Try network tab to intercept API responses
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Browser Setup Guide](docs/BROWSER-SETUP.md) | How to set up scripts as browser snippets |
+| [Architecture Guide](docs/ARCHITECTURE.md) | Code sharing between console scripts and extension |
+| [install.html](install.html) | Interactive browser installation helper |
 
 ---
 

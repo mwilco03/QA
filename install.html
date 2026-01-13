@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LMS Q&A Scripts - Browser Installation</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --surface: #16213e;
+            --surface-hover: #1f2b47;
+            --primary: #e94560;
+            --primary-hover: #ff6b6b;
+            --text: #eee;
+            --text-muted: #888;
+            --success: #4ade80;
+            --border: #333;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+        }
+
+        .warning {
+            background: #332200;
+            border: 1px solid #664400;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .warning-title {
+            color: #ffaa00;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .scripts {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .script-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .script-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--surface-hover);
+            cursor: pointer;
+        }
+
+        .script-header:hover {
+            background: #243555;
+        }
+
+        .script-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .script-desc {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .script-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: var(--primary-hover);
+        }
+
+        button.secondary {
+            background: #444;
+        }
+
+        button.secondary:hover {
+            background: #555;
+        }
+
+        button.success {
+            background: var(--success);
+            color: #000;
+        }
+
+        .script-content {
+            display: none;
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .script-content.expanded {
+            display: block;
+        }
+
+        .code-container {
+            position: relative;
+        }
+
+        pre {
+            background: #0d1117;
+            border-radius: 4px;
+            padding: 1rem;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+
+        code {
+            font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+            color: #c9d1d9;
+        }
+
+        .copy-feedback {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--success);
+            color: #000;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            font-weight: bold;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+
+        .copy-feedback.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .instructions {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .instructions h2 {
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .instructions ol {
+            padding-left: 1.5rem;
+        }
+
+        .instructions li {
+            margin-bottom: 0.5rem;
+        }
+
+        .instructions code {
+            background: #0d1117;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.9rem;
+        }
+
+        .api-reference {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .api-reference h4 {
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .api-code {
+            background: #0d1117;
+            padding: 0.75rem;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .tab {
+            padding: 0.5rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+        }
+
+        .tab.active {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .storage-note {
+            background: #1a2744;
+            border: 1px solid #2d4a7c;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 2rem;
+        }
+
+        .storage-note h3 {
+            color: #60a5fa;
+            margin-bottom: 0.5rem;
+        }
+
+        .storage-note p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>LMS Q&A Scripts</h1>
+        <p class="subtitle">Browser Installation Helper</p>
+
+        <div class="warning">
+            <div class="warning-title">Authorized Use Only</div>
+            <p>These tools are for QA testing, content validation, and accessibility review of courses you have authorization to test.</p>
+        </div>
+
+        <div class="instructions">
+            <h2>Quick Install to Browser Snippets</h2>
+            <ol>
+                <li>Open DevTools: Press <code>F12</code> or <code>Ctrl+Shift+I</code></li>
+                <li>Go to <code>Sources</code> tab, then <code>Snippets</code> in the left sidebar</li>
+                <li>Right-click in Snippets panel and select "New snippet"</li>
+                <li>Name it (e.g., <code>lms-extractor</code>)</li>
+                <li>Click "Copy" below on the script you want</li>
+                <li>Paste into the snippet editor</li>
+                <li>Press <code>Ctrl+S</code> to save</li>
+            </ol>
+            <p style="margin-top: 1rem; color: var(--text-muted);">
+                <strong>To run:</strong> Open snippet and press <code>Ctrl+Enter</code>, or use Command Palette (<code>Ctrl+P</code> then <code>!snippet-name</code>)
+            </p>
+        </div>
+
+        <div class="scripts" id="scripts">
+            <!-- Scripts loaded dynamically -->
+        </div>
+
+        <div class="storage-note">
+            <h3>Why can't I auto-install to disk?</h3>
+            <p>
+                Browser DevTools snippets are stored in IndexedDB/LevelDB within the browser profile,
+                not as plain files on disk. This is a browser security measure. The recommended workflow
+                is to keep scripts in this repository (for version control) and copy them to browser
+                snippets as needed. Scripts persist in the browser until manually deleted.
+            </p>
+        </div>
+    </div>
+
+    <div class="copy-feedback" id="copyFeedback">Copied to clipboard!</div>
+
+    <script>
+        const SCRIPTS = [
+            {
+                name: 'lms-extractor-complete.js',
+                displayName: 'LMS Extractor (All-in-One)',
+                description: 'Universal extractor for SCORM, TLA/xAPI, and Storyline courses',
+                api: `await LMSExtractor.extract()
+LMSExtractor.getCorrectAnswers()
+await LMSExtractor.complete(100)
+LMSExtractor.download('json')`
+            },
+            {
+                name: 'storyline-console-extractor.js',
+                displayName: 'Storyline Extractor',
+                description: 'Optimized for Articulate Storyline courses',
+                api: `StorylineExtractor.run()
+// Results in: window.allQA, window.courseData
+window.exportQA('json')`
+            },
+            {
+                name: 'tla-completion-helper.js',
+                displayName: 'TLA/xAPI Helper',
+                description: 'For TLA and xAPI-based learning platforms',
+                api: `const questions = TLAHelper.extractFromTasksJson(tasks)
+TLAHelper.exportQuestions(questions, 'text')
+await TLAHelper.autoComplete(sessionId, contentUrl)`
+            },
+            {
+                name: 'unified-qa-extractor.js',
+                displayName: 'Unified Q&A Extractor',
+                description: 'Multi-format parser with various export options',
+                api: `const parsed = UnifiedQAExtractor.extract(data)
+const correct = UnifiedQAExtractor.getCorrectAnswers(parsed)
+UnifiedQAExtractor.download(correct, 'json')`
+            },
+            {
+                name: 'storyline-data-extractor.js',
+                displayName: 'Storyline Data Parser',
+                description: 'Parse Storyline _data.js files (Browser + Node.js CLI)',
+                api: `StorylineDataExtractor.run()
+// CLI: node lib/storyline-data-extractor.js path/to/_data.js`
+            }
+        ];
+
+        const scriptsContainer = document.getElementById('scripts');
+        const copyFeedback = document.getElementById('copyFeedback');
+
+        // Load scripts
+        async function loadScripts() {
+            for (const script of SCRIPTS) {
+                try {
+                    const response = await fetch(`lib/${script.name}`);
+                    if (response.ok) {
+                        script.content = await response.text();
+                    } else {
+                        script.content = `// Failed to load ${script.name}\n// Please copy manually from lib/ directory`;
+                    }
+                } catch (e) {
+                    script.content = `// Failed to load ${script.name}\n// Please copy manually from lib/ directory`;
+                }
+                renderScript(script);
+            }
+        }
+
+        function renderScript(script) {
+            const card = document.createElement('div');
+            card.className = 'script-card';
+            card.innerHTML = `
+                <div class="script-header" onclick="toggleExpand(this)">
+                    <div>
+                        <div class="script-name">${script.displayName}</div>
+                        <div class="script-desc">${script.description}</div>
+                    </div>
+                    <div class="script-actions">
+                        <button class="secondary" onclick="event.stopPropagation(); toggleExpand(this.closest('.script-header'))">View Code</button>
+                        <button onclick="event.stopPropagation(); copyScript('${script.name}')">Copy</button>
+                    </div>
+                </div>
+                <div class="script-content" id="content-${script.name}">
+                    <div class="api-reference">
+                        <h4>Quick API Reference:</h4>
+                        <pre class="api-code">${script.api}</pre>
+                    </div>
+                    <div class="code-container" style="margin-top: 1rem;">
+                        <pre><code id="code-${script.name}">${escapeHtml(script.content)}</code></pre>
+                    </div>
+                </div>
+            `;
+            scriptsContainer.appendChild(card);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function toggleExpand(header) {
+            const content = header.nextElementSibling;
+            content.classList.toggle('expanded');
+            const btn = header.querySelector('.secondary');
+            btn.textContent = content.classList.contains('expanded') ? 'Hide Code' : 'View Code';
+        }
+
+        async function copyScript(name) {
+            const script = SCRIPTS.find(s => s.name === name);
+            if (script && script.content) {
+                try {
+                    await navigator.clipboard.writeText(script.content);
+                    showCopyFeedback();
+                } catch (e) {
+                    // Fallback for older browsers
+                    const textarea = document.createElement('textarea');
+                    textarea.value = script.content;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    showCopyFeedback();
+                }
+            }
+        }
+
+        function showCopyFeedback() {
+            copyFeedback.classList.add('show');
+            setTimeout(() => copyFeedback.classList.remove('show'), 2000);
+        }
+
+        // Initialize
+        loadScripts();
+    </script>
+</body>
+</html>
