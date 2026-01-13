@@ -1,4 +1,4 @@
-# LMS QA Validator v4.0.0
+# LMS QA Validator v7.0.0
 
 A Chrome extension for extracting Q&A content from Learning Management System (LMS) courses, detecting SCORM/xAPI APIs, and validating eLearning content with team collaboration features.
 
@@ -197,21 +197,9 @@ When a SCORM API is detected:
 }
 ```
 
-## Copy-Pasteable Scripts (No Extension Required)
+## Console Scripts (No Extension Required)
 
-For environments where browser extensions are controlled/restricted, use the standalone scripts in `lib/`:
-
-| Script | Purpose |
-|--------|---------|
-| `lib/lms-extractor-complete.js` | All-in-one SCORM/TLA/Storyline extractor |
-| `lib/storyline-console-extractor.js` | Storyline-specific extractor |
-| `lib/tla-completion-helper.js` | TLA/xAPI platform helper |
-| `lib/unified-qa-extractor.js` | Multi-format extraction |
-| `lib/storyline-data-extractor.js` | Storyline _data.js parser (CLI + browser) |
-
-**Usage:** Open DevTools Console (F12), paste script contents, run commands.
-
-**Sample Data:** `test-data/storyline-sample.zip` contains sample Storyline course files for testing.
+For environments where browser extensions are controlled/restricted, see the [`pasteable` branch](../../tree/pasteable) for standalone copy-paste scripts.
 
 ---
 
@@ -228,12 +216,7 @@ lms-qa-validator/
 │   └── content.js            # Page-extension bridge
 ├── lib/
 │   ├── lms-qa-validator.js   # Main extraction engine
-│   ├── tasks-extractor.js    # Network interceptor
-│   ├── lms-extractor-complete.js  # Console: All-in-one
-│   ├── tla-completion-helper.js   # Console: TLA/xAPI
-│   ├── unified-qa-extractor.js    # Console: Multi-format
-│   ├── storyline-data-extractor.js # CLI + Console: Storyline
-│   └── storyline-console-extractor.js  # Console: Storyline
+│   └── tasks-extractor.js    # Network interceptor
 ├── popup/
 │   ├── popup.html            # Extension popup UI
 │   ├── popup.css             # Styles

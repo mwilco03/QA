@@ -33,13 +33,6 @@ jobs:
           terser lib/lms-qa-validator.js -c -m -o dist/lib/lms-qa-validator.min.js
           terser lib/tasks-extractor.js -c -m -o dist/lib/tasks-extractor.min.js
 
-          # Console scripts (keep readable for copy-paste)
-          terser lib/lms-extractor-complete.js -c -m --comments '/^!|@preserve|@license/' -o dist/lib/lms-extractor-complete.min.js
-          terser lib/storyline-console-extractor.js -c -m --comments '/^!|@preserve|@license/' -o dist/lib/storyline-console-extractor.min.js
-          terser lib/unified-qa-extractor.js -c -m -o dist/lib/unified-qa-extractor.min.js
-          terser lib/storyline-data-extractor.js -c -m -o dist/lib/storyline-data-extractor.min.js
-          terser lib/tla-completion-helper.js -c -m -o dist/lib/tla-completion-helper.min.js
-
           # Extension files
           terser popup/popup.js -c -m -o dist/popup/popup.min.js
           terser background/service-worker.js -c -m -o dist/background/service-worker.min.js
