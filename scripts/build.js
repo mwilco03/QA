@@ -26,6 +26,7 @@ try {
 
 const SCRIPTS = [
     'lms-extractor-complete.js',
+    'storyline-answer-extractor.js',
     'storyline-console-extractor.js',
     'storyline-data-extractor.js',
     'tla-completion-helper.js',
@@ -52,6 +53,7 @@ const TERSER_OPTIONS = {
             'LMSExtractor',
             'TLAHelper',
             'UnifiedQAExtractor',
+            'StorylineAnswerExtractor',
             'StorylineDataExtractor',
             'StorylineExtractor',
             'exportQA',
