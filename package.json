@@ -1,0 +1,26 @@
+{
+  "name": "lms-qa-console-scripts",
+  "version": "7.0.0",
+  "description": "Copy-pasteable browser console scripts for LMS Q&A extraction",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js",
+    "build:watch": "nodemon --watch lib scripts/build.js"
+  },
+  "devDependencies": {
+    "terser": "^5.31.0"
+  },
+  "optionalDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "lms",
+    "scorm",
+    "storyline",
+    "xapi",
+    "qa-testing"
+  ]
+}

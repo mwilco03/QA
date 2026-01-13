@@ -330,8 +330,7 @@ LMSExtractor.download('json')`
                 name: 'storyline-console-extractor.js',
                 displayName: 'Storyline Extractor',
                 description: 'Optimized for Articulate Storyline courses',
-                api: `StorylineExtractor.run()
-// Results in: window.allQA, window.courseData
+                api: `// Results auto-populate in window.allQA, window.courseData
 window.exportQA('json')`
             },
             {
@@ -361,35 +360,65 @@ UnifiedQAExtractor.download(correct, 'json')`
 
         const scriptsContainer = document.getElementById('scripts');
         const copyFeedback = document.getElementById('copyFeedback');
+        let useMinified = true; // Default to minified
 
         // Load scripts
         async function loadScripts() {
             for (const script of SCRIPTS) {
+                // Load both versions
+                script.content = { full: null, minified: null };
+
+                // Load full version
                 try {
-                    const response = await fetch(`lib/${script.name}`);
-                    if (response.ok) {
-                        script.content = await response.text();
-                    } else {
-                        script.content = `// Failed to load ${script.name}\n// Please copy manually from lib/ directory`;
-                    }
-                } catch (e) {
-                    script.content = `// Failed to load ${script.name}\n// Please copy manually from lib/ directory`;
-                }
+                    const fullResp = await fetch(`lib/${script.name}`);
+                    if (fullResp.ok) script.content.full = await fullResp.text();
+                } catch (e) {}
+
+                // Load minified version
+                const minName = script.name.replace('.js', '.min.js');
+                try {
+                    const minResp = await fetch(`dist/${minName}`);
+                    if (minResp.ok) script.content.minified = await minResp.text();
+                } catch (e) {}
+
                 renderScript(script);
             }
         }
 
+        function getContent(script) {
+            if (useMinified && script.content.minified) return script.content.minified;
+            return script.content.full || `// Failed to load ${script.name}`;
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            return (bytes / 1024).toFixed(1) + ' KB';
+        }
+
         function renderScript(script) {
+            const fullSize = script.content.full ? script.content.full.length : 0;
+            const minSize = script.content.minified ? script.content.minified.length : 0;
+            const hasMin = minSize > 0;
+            const reduction = hasMin ? Math.round((1 - minSize / fullSize) * 100) : 0;
+
             const card = document.createElement('div');
             card.className = 'script-card';
+            card.id = `card-${script.name}`;
             card.innerHTML = `
                 <div class="script-header" onclick="toggleExpand(this)">
                     <div>
                         <div class="script-name">${script.displayName}</div>
                         <div class="script-desc">${script.description}</div>
+                        <div class="script-size" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
+                            ${hasMin
+                                ? `Minified: ${formatSize(minSize)} (${reduction}% smaller) | Full: ${formatSize(fullSize)}`
+                                : `Size: ${formatSize(fullSize)}`
+                            }
+                        </div>
                     </div>
                     <div class="script-actions">
-                        <button class="secondary" onclick="event.stopPropagation(); toggleExpand(this.closest('.script-header'))">View Code</button>
+                        <button class="secondary" onclick="event.stopPropagation(); toggleExpand(this.closest('.script-header'))">View</button>
+                        ${hasMin ? `<button class="secondary toggle-btn" onclick="event.stopPropagation(); toggleVersion('${script.name}')" title="Toggle minified/full">Min</button>` : ''}
                         <button onclick="event.stopPropagation(); copyScript('${script.name}')">Copy</button>
                     </div>
                 </div>
@@ -399,7 +428,7 @@ UnifiedQAExtractor.download(correct, 'json')`
                         <pre class="api-code">${script.api}</pre>
                     </div>
                     <div class="code-container" style="margin-top: 1rem;">
-                        <pre><code id="code-${script.name}">${escapeHtml(script.content)}</code></pre>
+                        <pre><code id="code-${script.name}">${escapeHtml(getContent(script))}</code></pre>
                     </div>
                 </div>
             `;
@@ -416,19 +445,44 @@ UnifiedQAExtractor.download(correct, 'json')`
             const content = header.nextElementSibling;
             content.classList.toggle('expanded');
             const btn = header.querySelector('.secondary');
-            btn.textContent = content.classList.contains('expanded') ? 'Hide Code' : 'View Code';
+            btn.textContent = content.classList.contains('expanded') ? 'Hide' : 'View';
+        }
+
+        function toggleVersion(name) {
+            const script = SCRIPTS.find(s => s.name === name);
+            if (!script) return;
+
+            // Toggle for this specific script
+            script.useMinified = script.useMinified === undefined ? false : !script.useMinified;
+
+            const codeEl = document.getElementById(`code-${name}`);
+            const content = script.useMinified === false ? script.content.full : script.content.minified;
+            codeEl.textContent = content || getContent(script);
+
+            // Update button text
+            const card = document.getElementById(`card-${name}`);
+            const toggleBtn = card.querySelector('.toggle-btn');
+            if (toggleBtn) {
+                toggleBtn.textContent = script.useMinified === false ? 'Full' : 'Min';
+            }
         }
 
         async function copyScript(name) {
             const script = SCRIPTS.find(s => s.name === name);
-            if (script && script.content) {
+            if (!script) return;
+
+            // Use script-specific setting, default to minified
+            const content = script.useMinified === false
+                ? script.content.full
+                : (script.content.minified || script.content.full);
+
+            if (content) {
                 try {
-                    await navigator.clipboard.writeText(script.content);
-                    showCopyFeedback();
+                    await navigator.clipboard.writeText(content);
+                    showCopyFeedback(script.content.minified && script.useMinified !== false ? 'Copied minified!' : 'Copied!');
                 } catch (e) {
-                    // Fallback for older browsers
                     const textarea = document.createElement('textarea');
-                    textarea.value = script.content;
+                    textarea.value = content;
                     document.body.appendChild(textarea);
                     textarea.select();
                     document.execCommand('copy');
@@ -438,7 +492,8 @@ UnifiedQAExtractor.download(correct, 'json')`
             }
         }
 
-        function showCopyFeedback() {
+        function showCopyFeedback(msg = 'Copied to clipboard!') {
+            copyFeedback.textContent = msg;
             copyFeedback.classList.add('show');
             setTimeout(() => copyFeedback.classList.remove('show'), 2000);
         }

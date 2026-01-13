@@ -16,6 +16,8 @@ For the Chrome extension version, see the [`extension` branch](../../tree/extens
 
 **Quick install:** Open [`install.html`](install.html) in your browser for easy copy-to-clipboard installation.
 
+**Minified scripts:** Use `dist/*.min.js` for maximum portability (~63% smaller, no comments).
+
 ## Available Scripts
 
 | Script | Purpose | API |
@@ -216,6 +218,17 @@ extractor.export(questions, 'csv')
 ### Questions not extracting
 - Course may use encrypted/obfuscated data
 - Try network tab to intercept API responses
+
+---
+
+## Building Minified Scripts
+
+```bash
+npm install        # Install terser
+npm run build      # Build dist/*.min.js
+```
+
+Minified scripts are ~63% smaller with no comments - ideal for pasting.
 
 ---
 

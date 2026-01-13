@@ -1,0 +1,53 @@
+name: Build Minified Scripts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'scripts/build.js'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: Build minified scripts
+        run: npm run build
+
+      - name: Upload minified scripts
+        uses: actions/upload-artifact@v4
+        with:
+          name: minified-scripts
+          path: dist/*.min.js
+          retention-days: 30
+
+      - name: Show results
+        run: |
+          echo "Minified scripts:"
+          ls -la dist/
+          echo ""
+          echo "Size comparison:"
+          for f in dist/*.min.js; do
+            base=$(basename "$f" .min.js)
+            orig="lib/${base}.js"
+            if [ -f "$orig" ]; then
+              orig_size=$(wc -c < "$orig")
+              min_size=$(wc -c < "$f")
+              echo "$base: $orig_size -> $min_size bytes"
+            fi
+          done
