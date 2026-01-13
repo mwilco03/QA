@@ -197,6 +197,26 @@ When a SCORM API is detected:
 }
 ```
 
+## Copy-Pasteable Scripts (No Extension Required)
+
+For environments where browser extensions are controlled/restricted, standalone JavaScript files are available in `pasteable-scripts/`:
+
+| Script | Purpose |
+|--------|---------|
+| `lms-extractor-complete.js` | All-in-one SCORM/TLA/Storyline extractor |
+| `UKI.js` | Storyline-specific extractor v2.1 |
+| `tla-completion-helper.js` | TLA/xAPI platform helper |
+| `unified-qa-extractor.js` | Multi-format extraction |
+| `storyline-data-extractor.js` | Storyline _data.js parser (CLI + browser) |
+
+**Usage:** Open DevTools Console (F12), paste script contents, run commands.
+
+See `pasteable-scripts/README.md` for detailed usage and magic strings reference.
+
+**Sample Data:** `lib/javascript.zip` contains sample Storyline course files for testing.
+
+---
+
 ## Architecture
 
 ```
@@ -208,7 +228,17 @@ lms-qa-extension/
 │   └── content.js          # Bridge between page and extension contexts
 ├── lib/
 │   ├── lms-qa-validator.js # Multi-tool extraction engine
-│   └── element-selector.js # Visual picker & rule-based extraction
+│   ├── lms-extractor-complete.js  # Console: All-in-one extractor
+│   ├── tla-completion-helper.js   # Console: TLA/xAPI helper
+│   ├── unified-qa-extractor.js    # Console: Multi-format extractor
+│   ├── storyline-data-extractor.js # CLI: Storyline parser
+│   ├── UKI.js              # Console: Storyline extractor
+│   ├── tasks-extractor.js  # Network interceptor
+│   ├── _index-JPAQiMOr.js  # TLA player bundle
+│   └── javascript.zip      # Sample Storyline course data
+├── pasteable-scripts/      # Standalone copy-paste scripts
+│   ├── README.md           # Usage & magic strings reference
+│   └── *.js                # Self-contained scripts
 ├── popup/
 │   ├── popup.html          # Extension popup UI
 │   ├── popup.css           # Styles (responsive)
