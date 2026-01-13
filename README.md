@@ -1,257 +1,196 @@
-# LMS QA Validator v3.2.0
+# LMS QA Validator
 
-A Chrome extension for extracting Q&A content from Learning Management System (LMS) courses, detecting SCORM/xAPI APIs, and validating eLearning content.
+Extract Q&A content from Learning Management System (LMS) courses, detect SCORM/xAPI APIs, and validate eLearning content.
 
-## Features
+**Current Version: v7.0.0**
 
-### Visual Element Selector (NEW in v3.2)
-- **Pick Q&A Elements**: Click to select question and answer elements visually
-- **Smart CSS Selectors**: Automatically generates robust selectors for similar elements
-- **URL Pattern Rules**: Rules saved per URL pattern, reused on return visits
-- **DOM Proximity Grouping**: Intelligently groups answers with their questions
-- **Correct Answer Detection**: Pick elements that indicate correct answers
-- **Hybrid Extraction**: Automatically detects SCORM/xAPI APIs alongside Q&A extraction
-- **Export/Import Rules**: Share selector rules between team members or LMS instances
+## What is this?
 
-### Content Extraction
-- **Storyline Support**: Extracts Q&A from Articulate Storyline courses by analyzing slide data
-- **DOM Quiz Detection**: Finds form-based quizzes (select, radio, checkbox) with correct answer indicators
-- **Visual Selector**: User-guided element picking for any LMS layout
+LMS QA Validator helps QA testers and developers extract question/answer content from eLearning courses. It supports multiple authoring tools and delivery methods:
 
-### SCORM/xAPI Integration
-- **API Detection**: Finds SCORM 1.2, SCORM 2004, xAPI (TCAPI/Tin Can), and AICC APIs
-- **Wrapper Support**: Detects pipwerks, xAPIWrapper, ADL, and TinCanAPI libraries
-- **API Testing**: Verify API connectivity and functionality
-- **Completion Control**: Set completion status and scores directly
+- **Articulate Storyline** - Slide data, accessibility DOM, frame analysis
+- **Articulate Rise 360** - Knowledge blocks, quiz components
+- **Adobe Captivate** - Quiz data, DOM patterns
+- **Lectora** - Trivantis quiz structures
+- **iSpring** - Quiz modules, presentation slides
 
-### Productivity Features
-- **Auto-Select Answers**: Automatically fills in correct answers for form quizzes
-- **Multi-Window Support**: Track and scan related popup windows
-- **Export Options**: Export results as JSON, CSV, or TXT
+## Choose Your Method
 
-## Installation
+| Branch | Use Case | Installation |
+|--------|----------|--------------|
+| [`extension`](../../tree/extension) | Chrome browser extension with full UI | Load unpacked in Chrome |
+| [`pasteable`](../../tree/pasteable) | Console scripts for restricted environments | Copy-paste into DevTools |
 
-1. Download or clone this repository
-2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable "Developer mode" (top right)
-4. Click "Load unpacked" and select the extension directory
+### Browser Extension ([`extension` branch](../../tree/extension))
 
-## Usage
+Full-featured Chrome extension with:
+- Visual element picker for custom Q&A extraction
+- Question bank collaboration features
+- Auto-detection of authoring tools
+- One-click answer auto-fill
+- Export to JSON/CSV/TXT
 
-### Visual Element Selector (Recommended)
-
-The most accurate way to extract Q&A from any LMS:
-
-1. Navigate to an LMS course page with quiz content
-2. Click the extension icon
-3. Click **"Pick Q&A Elements"**
-4. **Step 1**: Click on any question text element (highlights in green)
-5. **Step 2**: Click on any answer choice element (highlights in blue)
-6. **Step 3**: Optionally click a "correct answer" indicator (or skip)
-7. Review the preview and click **"Save Rule"**
-
-On return visits to the same LMS:
-- The saved rule appears automatically
-- Click **"Apply Rule"** to extract Q&A instantly
-
-### Basic Scanning (Pattern Matching)
-1. Navigate to an LMS course page
-2. Click the extension icon
-3. Click "Scan Page"
-4. View extracted Q&A in the results tabs
-
-Note: Pattern matching may produce false positives. Visual selector is preferred.
-
-### Auto-Select Answers
-1. Scan the page first (using either method)
-2. Click "Auto-Select Answers" in Quick Actions
-3. The extension will fill in all detected correct answers
-
-### SCORM Controls
-When a SCORM API is detected:
-- **Test API**: Verify API communication
-- **Set Completion**: Mark course as complete with a score
-
-### Keyboard Shortcuts
-- `Ctrl+R`: Scan page
-- `Ctrl+F`: Focus search
-- `Ctrl+E`: Export as JSON
-- `Escape`: Clear search
-
-## Architecture
-
-```
-lms-qa-extension/
-├── manifest.json           # Extension configuration
-├── background/
-│   └── service-worker.js   # Tab state, downloads, rule storage
-├── content/
-│   └── content.js          # Bridge between page and extension contexts
-├── lib/
-│   ├── lms-qa-validator.js # Pattern-based extraction (legacy)
-│   └── element-selector.js # Visual picker & rule-based extraction (new)
-├── popup/
-│   ├── popup.html          # Extension popup UI
-│   ├── popup.css           # Styles
-│   └── popup.js            # Popup logic
-└── icons/                  # Extension icons
+**Install:**
+```bash
+git clone -b extension https://github.com/mwilco03/QA.git
+# Then load unpacked in chrome://extensions/
 ```
 
-### Component Responsibilities
+### Console Scripts ([`pasteable` branch](../../tree/pasteable))
 
-**Service Worker** (`background/service-worker.js`)
-- Manages tab state across navigation
-- Stores selector rules per URL pattern
-- Tracks parent/child window relationships
-- Handles file downloads
+For environments where browser extensions are controlled/restricted:
+- Copy-paste scripts into browser DevTools console
+- No installation required
+- Minified versions available (~63% smaller)
 
-**Content Script** (`content/content.js`)
-- Bridges page context and extension context
-- Injects validator or selector scripts
-- Forwards messages between contexts
-
-**Element Selector** (`lib/element-selector.js`)
-- Visual overlay for element picking
-- CSS selector generation (6 strategies)
-- DOM proximity grouping for Q&A correlation
-- Rule-based extraction engine
-
-**Validator** (`lib/lms-qa-validator.js`)
-- Pattern-based extraction (legacy)
-- Storyline slide data parsing
-- DOM quiz detection
-- SCORM/xAPI API discovery
-
-**Popup** (`popup/`)
-- User interface
-- Rule management
-- Results display
-
-## Selector Rule Storage
-
-Rules are stored by URL pattern:
-
-```
-example.com/course/*/module/* → {
-  questionSelector: ".quiz-question",
-  answerSelector: ".answer-choice",
-  correctSelector: "[data-correct='true']"
-}
+**Quick start:**
+```bash
+git clone -b pasteable https://github.com/mwilco03/QA.git
+# Open lib/*.js files and paste into browser console
 ```
 
-Numeric path segments (like `/course/123/`) are wildcarded to `/*`, so one rule works for all courses on the same LMS.
+---
 
-## Console API
+## Branch Structure
 
-### Validator API (Pattern Matching)
+```
+main                    # This landing page (documentation only)
+├── extension           # Chrome browser extension (full UI)
+├── pasteable           # Console scripts (copy-paste)
+└── claude/*            # Development/feature branches
+```
+
+| Branch | Purpose | Status |
+|--------|---------|--------|
+| `main` | Landing page and documentation | Stable |
+| `extension` | Chrome extension with popup UI, service worker, content scripts | Stable (v7.0.0) |
+| `pasteable` | Standalone scripts for browser console | Stable (v7.0.0) |
+
+---
+
+## Build System
+
+### Node.js Usage
+
+Node.js is used **only for build tooling** (minification, CI/CD). The actual scripts are optimized for and run in:
+
+- **Browser console** - All `pasteable` scripts are pure browser JavaScript
+- **Chrome extension APIs** - Extension code uses Chrome-specific APIs
+
+**Build priority**: Browser/extension compatibility always wins. If there's ever a conflict between Node.js and browser implementation, browser takes priority.
+
+### GitHub Actions Workflows
+
+Both `extension` and `pasteable` branches have CI/CD workflows:
+
+- **extension**: Minifies JS/CSS, creates release artifacts
+- **pasteable**: Builds minified console scripts via `terser`
+
+```yaml
+# Example: pasteable branch workflow
+- npm install --ignore-scripts
+- npm run build  # Creates dist/*.min.js
+```
+
+---
+
+## Features Overview
+
+### Q&A Extraction
+- Visual element picker (click to select questions/answers)
+- Pattern-based extraction for known authoring tools
+- SCORM interaction data parsing
+- Accessibility DOM extraction (Storyline)
+
+### SCORM/xAPI Support
+- Auto-detect SCORM 1.2, SCORM 2004, xAPI, AICC APIs
+- Test API connectivity
+- Set completion status and scores
+- Wrapper library detection (pipwerks, xAPIWrapper, ADL)
+
+### Export Options
+- **JSON** - Structured schema for automation pipelines
+- **CSV** - For spreadsheets
+- **TXT** - Human-readable format
+
+### Question Types Supported
+- Multiple Choice / Multiple Select
+- True/False
+- Sequencing/Ordering
+- Matching
+- Fill-in-the-Blank
+
+---
+
+## Quick Reference
+
+### Console API (when scripts are loaded)
+
 ```javascript
-// Get current state
-LMS_QA.getState()
+// Extract Q&A
+await LMSExtractor.extract()
 
-// Get extracted Q&A
-LMS_QA.getQA()
+// Get correct answers
+LMSExtractor.getCorrectAnswers()
 
-// Get detected APIs
-LMS_QA.getAPIs()
+// Complete course
+await LMSExtractor.complete(100)
 
-// Run a scan
-LMS_QA.scan()
-
-// Auto-select correct answers
-LMS_QA.autoSelect()
-
-// Export results
-LMS_QA.export('json')
-LMS_QA.export('csv')
-LMS_QA.export('txt')
-
-// Get DOM quizzes
-LMS_QA.getDOMQuizzes()
-
-// Test SCORM API
-LMS_QA.testAPI(0)
-
-// Set completion
-LMS_QA.setCompletion({ status: 'completed', score: 100 })
+// Download results
+LMSExtractor.download('json')
 ```
 
-### Selector API (Visual Picker)
-```javascript
-// Activate visual picker
-LMS_QA_SELECTOR.activate()
+### Extension Keyboard Shortcuts
 
-// Deactivate
-LMS_QA_SELECTOR.deactivate()
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+R` | Scan page |
+| `Ctrl+F` | Focus search |
+| `Ctrl+E` | Export as JSON |
+| `Escape` | Clear search |
 
-// Get current picker state
-LMS_QA_SELECTOR.getState()
+---
 
-// Get URL pattern for current page
-LMS_QA_SELECTOR.getURLPattern()
+## Action Items
 
-// Apply a rule manually
-LMS_QA_SELECTOR.applyRule({
-  questionSelector: '.q-text',
-  answerSelector: '.a-choice',
-  correctSelector: '.correct'
-})
+### Pending Work
 
-// Extract with selectors directly
-LMS_QA_SELECTOR.extractWithSelectors('.q', '.a', '.correct')
-```
+| Branch | Issue | Priority |
+|--------|-------|----------|
+| `extension` | Ensure `lib/element-selector.js` is present | High |
+| `pasteable` | Verify `install.html` works correctly | Medium |
+| `claude/code-review-assessment-*` | Contains mixed extension/console content - needs cleanup or archival | Low |
+| `claude/restore-copy-pasteable-scripts-*` | WIP branch - merge or archive | Low |
 
-## Development
+### Branch Maintenance
 
-### Code Quality Principles
-- User-guided extraction over pattern guessing
-- Consistent error handling
-- Modular architecture with clear boundaries
-- No external dependencies
-- Debounced UI operations
+- **`extension`** and **`pasteable`** are the canonical branches
+- Development branches prefixed with `claude/` are temporary
+- Merge or delete stale `claude/*` branches after review
 
-### Testing
-Open `tests/test-runner.html` in a browser to run unit tests.
+---
 
-## Version History
+## Contributing
 
-### v3.2.0
-- **Visual Element Selector**: Pick Q&A elements directly on the page
-- **URL Pattern Rules**: Save and reuse selectors per LMS
-- **DOM Proximity Grouping**: Correlate questions with their answers
-- **Hybrid Extraction**: Selector-based Q&A + automatic SCORM/xAPI API detection
-- **Export/Import Rules**: Share selector rules as JSON files
-- **Enhanced API Detection**: Added TCAPI, TinCanAPI, xAPIWrapper, ADL support
-- **Smart CSS Generation**: 6 strategies for robust selectors
-- Removed unused constants.js
+1. Fork the repository
+2. Create a feature branch from `extension` or `pasteable`
+3. Make changes and test in browser
+4. Submit PR to the appropriate branch
 
-### v3.1.0
-- **Critical Bug Fix**: Added code detection to prevent extracting JavaScript source code as Q&A content
-- Added `isCodeLike()` and `isNaturalLanguage()` content validators
-- More restrictive pattern matching for resource analysis
-- Skip SCORM runtime library files automatically
-- Improved confidence scoring (pattern matches now LOW confidence)
+**Important**: All code must work in browser environments. Node.js is only for build tooling.
 
-### v3.0.0
-- Complete architectural refactor
-- Modular code organization
-- Consistent error handling
-- Centralized state management
+---
 
-### v2.2.0
-- Added DOM quiz extraction
-- Auto-select functionality
-- Spawned window tracking
-- Related windows UI
+## Documentation
 
-### v2.1.0
-- Fixed export functionality
-- Added search filtering
-- Improved UX
+| Document | Location |
+|----------|----------|
+| Extension README | [`extension` branch README](../../tree/extension) |
+| Console Scripts README | [`pasteable` branch README](../../tree/pasteable) |
+| Browser Setup Guide | [`pasteable` branch `docs/BROWSER-SETUP.md`](../../blob/pasteable/docs/BROWSER-SETUP.md) |
+| Architecture Guide | [`pasteable` branch `docs/ARCHITECTURE.md`](../../blob/pasteable/docs/ARCHITECTURE.md) |
 
-### v2.0.0
-- Articulate Storyline support
-- SCORM API detection
-- Initial release
+---
 
 ## License
 
