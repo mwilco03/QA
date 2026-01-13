@@ -1,6 +1,5 @@
 /**
- * LMS QA Validator - Content Script v6.1
- * VERBOSE LOGGING VERSION
+ * LMS QA Validator - Content Script v7.0
  * Bridges page context (validator/extractor) with extension context (service worker)
  *
  * Key improvements:
@@ -13,10 +12,10 @@
     'use strict';
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // VERBOSE LOGGING
+    // LOGGING CONFIGURATION
     // ═══════════════════════════════════════════════════════════════════════════
 
-    const VERBOSE = true;
+    const VERBOSE = false;  // Set to true for detailed debug logging
 
     const log = {
         info: (category, msg, data) => {

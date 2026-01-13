@@ -9,10 +9,8 @@ For environments where extensions are controlled, use the copy-pasteable scripts
 1. Open your LMS course in a browser
 2. Press `F12` to open Developer Tools
 3. Go to the **Console** tab
-4. Paste the contents of `pasteable-scripts/lms-extractor-complete.js` (or `lib/lms-extractor-complete.js`)
+4. Paste the contents of `lib/lms-extractor-complete.js`
 5. Run commands:
-
-> **Tip:** See `pasteable-scripts/README.md` for complete magic strings reference and troubleshooting.
 
 ```javascript
 // Extract all questions and answers

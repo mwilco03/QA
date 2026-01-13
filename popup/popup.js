@@ -1,5 +1,5 @@
 /**
- * LMS QA Validator - Popup v6.0
+ * LMS QA Validator - Popup v7.0
  * Simplified UI: Priority actions always visible
  * 1) Complete Course 2) Scan Q&A 3) Export
  */

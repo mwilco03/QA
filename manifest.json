@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "LMS QA Validator",
-    "version": "6.1.0",
+    "version": "7.0.0",
     "description": "Extract Q&A content from LMS courses, detect SCORM/xAPI APIs, and validate eLearning content",
     
     "permissions": [

@@ -1,0 +1,103 @@
+name: Build and Minify
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install -g terser clean-css-cli
+
+      - name: Create dist directory
+        run: mkdir -p dist/lib dist/popup dist/background dist/content dist/icons
+
+      - name: Minify JavaScript files
+        run: |
+          # Main library files
+          terser lib/lms-qa-validator.js -c -m -o dist/lib/lms-qa-validator.min.js
+          terser lib/tasks-extractor.js -c -m -o dist/lib/tasks-extractor.min.js
+
+          # Console scripts (keep readable for copy-paste)
+          terser lib/lms-extractor-complete.js -c -m --comments '/^!|@preserve|@license/' -o dist/lib/lms-extractor-complete.min.js
+          terser lib/UKI.js -c -m --comments '/^!|@preserve|@license/' -o dist/lib/UKI.min.js
+          terser lib/unified-qa-extractor.js -c -m -o dist/lib/unified-qa-extractor.min.js
+          terser lib/storyline-data-extractor.js -c -m -o dist/lib/storyline-data-extractor.min.js
+          terser lib/tla-completion-helper.js -c -m -o dist/lib/tla-completion-helper.min.js
+
+          # Extension files
+          terser popup/popup.js -c -m -o dist/popup/popup.min.js
+          terser background/service-worker.js -c -m -o dist/background/service-worker.min.js
+          terser content/content.js -c -m -o dist/content/content.min.js
+
+          # Copy large bundle as-is (already minified)
+          cp lib/tla-player-bundle.js dist/lib/
+
+      - name: Minify CSS
+        run: |
+          cleancss -o dist/popup/popup.min.css popup/popup.css
+
+      - name: Copy static files
+        run: |
+          cp popup/popup.html dist/popup/
+          cp -r icons/* dist/icons/
+          cp manifest.json dist/
+          cp README.md dist/
+
+          # Update manifest to use minified files
+          sed -i 's/popup\.js/popup.min.js/g' dist/popup/popup.html
+          sed -i 's/popup\.css/popup.min.css/g' dist/popup/popup.html
+
+      - name: Create production manifest
+        run: |
+          # Update manifest to reference minified files
+          cat manifest.json | \
+            sed 's|lib/lms-qa-validator.js|lib/lms-qa-validator.min.js|g' | \
+            sed 's|lib/tasks-extractor.js|lib/tasks-extractor.min.js|g' | \
+            sed 's|content/content.js|content/content.min.js|g' | \
+            sed 's|background/service-worker.js|background/service-worker.min.js|g' \
+            > dist/manifest.json
+
+      - name: Calculate size reduction
+        run: |
+          echo "=== Size Comparison ==="
+          echo "Original sizes:"
+          du -sh lib/*.js popup/*.js popup/*.css background/*.js content/*.js 2>/dev/null || true
+          echo ""
+          echo "Minified sizes:"
+          du -sh dist/lib/*.js dist/popup/*.js dist/popup/*.css dist/background/*.js dist/content/*.js 2>/dev/null || true
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lms-qa-validator-${{ github.sha }}
+          path: dist/
+          retention-days: 30
+
+      - name: Create release zip
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          cd dist
+          zip -r ../lms-qa-validator-${{ github.ref_name }}.zip .
+
+      - name: Upload release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: lms-qa-validator-${{ github.ref_name }}.zip
+          generate_release_notes: true

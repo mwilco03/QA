@@ -1,5 +1,5 @@
 /**
- * LMS QA Validator - Service Worker v5.0
+ * LMS QA Validator - Service Worker v7.0
  * Handles cross-tab state, downloads, and background operations
  * 
  * @fileoverview Background service worker for extension coordination

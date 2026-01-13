@@ -199,53 +199,49 @@ When a SCORM API is detected:
 
 ## Copy-Pasteable Scripts (No Extension Required)
 
-For environments where browser extensions are controlled/restricted, standalone JavaScript files are available in `pasteable-scripts/`:
+For environments where browser extensions are controlled/restricted, use the standalone scripts in `lib/`:
 
 | Script | Purpose |
 |--------|---------|
-| `lms-extractor-complete.js` | All-in-one SCORM/TLA/Storyline extractor |
-| `UKI.js` | Storyline-specific extractor v2.1 |
-| `tla-completion-helper.js` | TLA/xAPI platform helper |
-| `unified-qa-extractor.js` | Multi-format extraction |
-| `storyline-data-extractor.js` | Storyline _data.js parser (CLI + browser) |
+| `lib/lms-extractor-complete.js` | All-in-one SCORM/TLA/Storyline extractor |
+| `lib/UKI.js` | Storyline-specific extractor |
+| `lib/tla-completion-helper.js` | TLA/xAPI platform helper |
+| `lib/unified-qa-extractor.js` | Multi-format extraction |
+| `lib/storyline-data-extractor.js` | Storyline _data.js parser (CLI + browser) |
 
 **Usage:** Open DevTools Console (F12), paste script contents, run commands.
 
-See `pasteable-scripts/README.md` for detailed usage and magic strings reference.
-
-**Sample Data:** `lib/javascript.zip` contains sample Storyline course files for testing.
+**Sample Data:** `test-data/storyline-sample.zip` contains sample Storyline course files for testing.
 
 ---
 
 ## Architecture
 
 ```
-lms-qa-extension/
-├── manifest.json           # Extension configuration
+lms-qa-validator/
+├── manifest.json             # Extension config (v7.0)
+├── .github/workflows/        # CI/CD
+│   └── build.yml             # Minification & release workflow
 ├── background/
-│   └── service-worker.js   # Tab state, downloads, rule storage
+│   └── service-worker.js     # Tab state, downloads, rule storage
 ├── content/
-│   └── content.js          # Bridge between page and extension contexts
+│   └── content.js            # Page-extension bridge
 ├── lib/
-│   ├── lms-qa-validator.js # Multi-tool extraction engine
-│   ├── lms-extractor-complete.js  # Console: All-in-one extractor
-│   ├── tla-completion-helper.js   # Console: TLA/xAPI helper
-│   ├── unified-qa-extractor.js    # Console: Multi-format extractor
-│   ├── storyline-data-extractor.js # CLI: Storyline parser
-│   ├── UKI.js              # Console: Storyline extractor
-│   ├── tasks-extractor.js  # Network interceptor
-│   ├── _index-JPAQiMOr.js  # TLA player bundle
-│   └── javascript.zip      # Sample Storyline course data
-├── pasteable-scripts/      # Standalone copy-paste scripts
-│   ├── README.md           # Usage & magic strings reference
-│   └── *.js                # Self-contained scripts
+│   ├── lms-qa-validator.js   # Main extraction engine
+│   ├── lms-extractor-complete.js  # Console: All-in-one
+│   ├── tla-completion-helper.js   # Console: TLA/xAPI
+│   ├── unified-qa-extractor.js    # Console: Multi-format
+│   ├── storyline-data-extractor.js # CLI + Console: Storyline
+│   ├── UKI.js                # Console: Storyline extractor
+│   ├── tasks-extractor.js    # Network interceptor
+│   └── tla-player-bundle.js  # TLA player (4MB)
 ├── popup/
-│   ├── popup.html          # Extension popup UI
-│   ├── popup.css           # Styles (responsive)
-│   └── popup.js            # Popup logic, Templates, Renderer
-├── docs/
-│   └── COMPLETION-BYPASS-TECHNICAL-SPEC.md  # QA bypass documentation
-└── icons/                  # Extension icons
+│   ├── popup.html            # Extension popup UI
+│   ├── popup.css             # Styles
+│   └── popup.js              # Popup logic
+├── test-data/
+│   └── storyline-sample.zip  # Sample course files
+└── icons/                    # Extension icons
 ```
 
 ### Component Responsibilities
@@ -367,6 +363,14 @@ LMS_QA_SELECTOR.extractWithSelectors('.q', '.a', '.correct')
 Open `tests/test-runner.html` in a browser to run unit tests.
 
 ## Version History
+
+### v7.0.0
+- **Unified Versioning**: All components aligned to v7.0.0
+- **Production Mode**: VERBOSE logging disabled by default
+- **GitHub Actions**: Added CI/CD workflow for minification and releases
+- **File Reorganization**: Renamed `_index-JPAQiMOr.js` to `tla-player-bundle.js`
+- **Test Data**: Moved sample files to `test-data/` directory
+- **Cleanup**: Removed duplicate `pasteable-scripts/` folder
 
 ### v4.0.0
 - **Question Banks**: Save extracted Q&A to named banks for team collaboration
