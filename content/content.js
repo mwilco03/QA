@@ -60,15 +60,9 @@
         PING: 'PING',
         DETECT_APIS: 'DETECT_APIS',
         GET_FRAME_INFO: 'GET_FRAME_INFO',
-        SEED_EXTRACT: 'SEED_EXTRACT',
         DETECT_FRAMEWORK: 'DETECT_FRAMEWORK',
-        COMPLETE_OBJECTIVES: 'COMPLETE_OBJECTIVES',
-        MARK_SLIDES: 'MARK_SLIDES',
         FULL_COMPLETION: 'FULL_COMPLETION',
-        ESTIMATE_DURATION: 'ESTIMATE_DURATION',
-        GET_EXTRACTED_DATA: 'GET_EXTRACTED_DATA',
-        GET_QUESTIONS: 'GET_QUESTIONS',
-        GET_CORRECT_ANSWERS: 'GET_CORRECT_ANSWERS'
+        GET_EXTRACTED_DATA: 'GET_EXTRACTED_DATA'
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -617,20 +611,6 @@
         [CMD.DETECT_APIS]: async () => {
             log.info('CMD', '▶ DETECT_APIS requested');
             await sendValidatorCommand('CMD_DETECT_APIS');
-            return { success: true };
-        },
-
-        [CMD.COMPLETE_OBJECTIVES]: async (message) => {
-            log.info('CMD', '▶ COMPLETE_OBJECTIVES requested');
-            const payload = { status: message.status || 'passed', score: message.score || 100 };
-            await sendValidatorCommand('CMD_COMPLETE_OBJECTIVES', payload);
-            return { success: true };
-        },
-
-        [CMD.MARK_SLIDES]: async (message) => {
-            log.info('CMD', '▶ MARK_SLIDES requested');
-            const payload = { tool: message.tool || null };
-            await sendValidatorCommand('CMD_MARK_SLIDES', payload);
             return { success: true };
         }
     };

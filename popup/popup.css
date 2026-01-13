@@ -190,21 +190,6 @@ body {
 .status-dot.success { background: var(--color-success); }
 .status-dot.error { background: var(--color-error); }
 
-/* Tab Info */
-.tab-info {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-lg);
-    font-size: var(--font-size-sm);
-    background: var(--color-bg-tertiary);
-    border-bottom: 1px solid var(--color-border);
-}
-
-.tab-label {
-    color: var(--color-text-muted);
-}
-
 .tab-url {
     color: var(--color-text-secondary);
     overflow: hidden;
@@ -662,45 +647,6 @@ body {
     color: var(--color-text-muted);
 }
 
-/* Log Items */
-.logs-list {
-    font-family: 'SF Mono', Consolas, monospace;
-    font-size: var(--font-size-xs);
-}
-
-.log-item {
-    display: flex;
-    gap: var(--space-sm);
-    padding: 3px var(--space-sm);
-    border-bottom: 1px solid var(--color-border);
-}
-
-.log-item:last-child {
-    border-bottom: none;
-}
-
-.log-time {
-    flex-shrink: 0;
-    color: var(--color-text-muted);
-}
-
-.log-level {
-    flex-shrink: 0;
-    width: 45px;
-    font-weight: 600;
-}
-
-.log-item.info .log-level { color: var(--color-info); }
-.log-item.warn .log-level { color: var(--color-warning); }
-.log-item.error .log-level { color: var(--color-error); }
-.log-item.debug .log-level { color: var(--color-text-muted); }
-
-.log-msg {
-    flex: 1;
-    color: var(--color-text-secondary);
-    word-break: break-word;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
    7. SECTIONS
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -719,17 +665,6 @@ body {
     width: 14px;
     height: 14px;
     color: var(--color-text-muted);
-}
-
-/* Validation Warnings */
-.validation-warnings {
-    display: none;
-    padding: var(--space-sm) var(--space-lg);
-    border-bottom: 1px solid var(--color-border);
-}
-
-.validation-warnings.active {
-    display: block;
 }
 
 /* Related Windows */
@@ -823,16 +758,6 @@ body {
 
 .control-row .select {
     flex: 1;
-}
-
-.section-subheader {
-    font-size: var(--font-size-xs);
-    font-weight: 500;
-    color: var(--color-text-secondary);
-    margin-top: var(--space-md);
-    margin-bottom: var(--space-xs);
-    padding-top: var(--space-sm);
-    border-top: 1px solid var(--color-border);
 }
 
 .completion-advanced {

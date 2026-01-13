@@ -45,9 +45,6 @@ jobs:
           terser background/service-worker.js -c -m -o dist/background/service-worker.min.js
           terser content/content.js -c -m -o dist/content/content.min.js
 
-          # Copy large bundle as-is (already minified)
-          cp lib/tla-player-bundle.js dist/lib/
-
       - name: Minify CSS
         run: |
           cleancss -o dist/popup/popup.min.css popup/popup.css

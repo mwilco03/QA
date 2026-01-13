@@ -228,13 +228,12 @@ lms-qa-validator/
 │   └── content.js            # Page-extension bridge
 ├── lib/
 │   ├── lms-qa-validator.js   # Main extraction engine
+│   ├── tasks-extractor.js    # Network interceptor
 │   ├── lms-extractor-complete.js  # Console: All-in-one
 │   ├── tla-completion-helper.js   # Console: TLA/xAPI
 │   ├── unified-qa-extractor.js    # Console: Multi-format
 │   ├── storyline-data-extractor.js # CLI + Console: Storyline
-│   ├── storyline-console-extractor.js                # Console: Storyline extractor
-│   ├── tasks-extractor.js    # Network interceptor
-│   └── tla-player-bundle.js  # TLA player (4MB)
+│   └── storyline-console-extractor.js  # Console: Storyline
 ├── popup/
 │   ├── popup.html            # Extension popup UI
 │   ├── popup.css             # Styles
@@ -368,9 +367,8 @@ Open `tests/test-runner.html` in a browser to run unit tests.
 - **Unified Versioning**: All components aligned to v7.0.0
 - **Production Mode**: VERBOSE logging disabled by default
 - **GitHub Actions**: Added CI/CD workflow for minification and releases
-- **File Reorganization**: Renamed `_index-JPAQiMOr.js` to `tla-player-bundle.js`
 - **Test Data**: Moved sample files to `test-data/` directory
-- **Cleanup**: Removed duplicate `pasteable-scripts/` folder
+- **Cleanup**: Removed unused code, dead handlers, and duplicate files
 
 ### v4.0.0
 - **Question Banks**: Save extracted Q&A to named banks for team collaboration
