@@ -12,6 +12,12 @@ For the Chrome extension version, see the [`extension` branch](../../tree/extens
 4. Paste the contents of the appropriate script
 5. Run commands as documented below
 
+**For persistent setup**, see [Browser Setup Guide](docs/BROWSER-SETUP.md) to save scripts as browser snippets.
+
+**Quick install:** Open [`install.html`](install.html) in your browser for easy copy-to-clipboard installation.
+
+**Minified scripts:** Use `dist/*.min.js` for maximum portability (~63% smaller, no comments).
+
 ## Available Scripts
 
 | Script | Purpose | API |
@@ -20,7 +26,7 @@ For the Chrome extension version, see the [`extension` branch](../../tree/extens
 | `lib/storyline-console-extractor.js` | Articulate Storyline extractor | `StorylineExtractor` |
 | `lib/tla-completion-helper.js` | TLA/xAPI platform helper | `TLAHelper` |
 | `lib/unified-qa-extractor.js` | Multi-format Q&A extraction | `UnifiedQAExtractor` |
-| `lib/storyline-data-extractor.js` | Storyline _data.js parser (CLI + browser) | `StorylineDataExtractor` |
+| `lib/storyline-data-extractor.js` | Storyline data parser with dynamic discovery | `StorylineDataExtractor` |
 
 ---
 
@@ -105,21 +111,22 @@ console.log(UnifiedQAExtractor.export(correct, 'csv'));
 
 ### storyline-data-extractor.js (CLI + Browser)
 
-Parse Storyline `_data.js` files directly.
+Dynamic discovery and extraction from Storyline courses.
 
 **Browser Console:**
 ```javascript
 // Paste lib/storyline-data-extractor.js into console, then:
-StorylineDataExtractor.run()
+await StorylineDataExtractor.run()
+// Results in window.allQA
 ```
 
 **Node.js CLI:**
 ```bash
-# Parse a _data.js file
-node lib/storyline-data-extractor.js path/to/_data.js
+# Parse a data file with globalProvideData
+node lib/storyline-data-extractor.js ./html5/data/js/data.js
 
 # Search for specific question
-node lib/storyline-data-extractor.js _data.js "HAS-1.2.3"
+node lib/storyline-data-extractor.js ./data.js "HAS-1.2.3"
 ```
 
 ---
@@ -212,6 +219,27 @@ extractor.export(questions, 'csv')
 ### Questions not extracting
 - Course may use encrypted/obfuscated data
 - Try network tab to intercept API responses
+
+---
+
+## Building Minified Scripts
+
+```bash
+npm install        # Install terser
+npm run build      # Build dist/*.min.js
+```
+
+Minified scripts are ~63% smaller with no comments - ideal for pasting.
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Browser Setup Guide](docs/BROWSER-SETUP.md) | How to set up scripts as browser snippets |
+| [Architecture Guide](docs/ARCHITECTURE.md) | Code sharing between console scripts and extension |
+| [install.html](install.html) | Interactive browser installation helper |
 
 ---
 
