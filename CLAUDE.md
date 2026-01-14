@@ -1,7 +1,7 @@
-# QA Console Scripts - Engineering Specification
+# QA Console Scripts - Engineering Specification v9.0
 
 ## Purpose
-Browser console scripts for extracting Q&A data from LMS courses (Storyline, SCORM, TLA/xAPI). Fire-and-forget: paste, get object, done.
+Browser console scripts for extracting Q&A data from LMS courses (Storyline, SCORM, TLA/xAPI). Fire-and-forget: paste, get object, done. Silent unless error.
 
 ## Architecture Principles
 
