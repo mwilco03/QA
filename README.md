@@ -1,22 +1,35 @@
-# LMS Q&A Console Scripts v7.0.0
+# LMS Q&A Console Scripts v9.1
 
-Copy-pasteable browser console scripts for extracting Q&A content from LMS courses. For environments where browser extensions are controlled/restricted.
+Copy-pasteable browser console scripts for extracting Q&A content from LMS courses. Fire-and-forget: paste script, get object back, inspect results.
 
-For the Chrome extension version, see the [`extension` branch](../../tree/extension).
+## PowerShell One-Liner (Copy to Clipboard)
+
+```powershell
+# Main extractor (recommended)
+(irm https://raw.githubusercontent.com/mwilco03/QA/main/dist/lms-extractor-complete.min.js) | Set-Clipboard
+
+# Or use the install script
+irm https://raw.githubusercontent.com/mwilco03/QA/main/install.ps1 | iex
+# Then: Get-QAScript -Script lms  (copies to clipboard)
+```
+
+**Bash/curl alternative:**
+```bash
+curl -s https://raw.githubusercontent.com/mwilco03/QA/main/dist/lms-extractor-complete.min.js | pbcopy  # macOS
+curl -s https://raw.githubusercontent.com/mwilco03/QA/main/dist/lms-extractor-complete.min.js | xclip  # Linux
+```
 
 ## Quick Start
 
-1. Open your LMS course in a browser
-2. Press `F12` to open Developer Tools
-3. Go to the **Console** tab
-4. Paste the contents of the appropriate script
-5. Run commands as documented below
+1. Run the PowerShell one-liner above (or manually copy from `dist/`)
+2. Open your LMS course in a browser
+3. Press `F12` → **Console** tab
+4. Paste and press Enter
+5. Inspect the returned object
 
-**For persistent setup**, see [Browser Setup Guide](docs/BROWSER-SETUP.md) to save scripts as browser snippets.
+**Append mode:** Paste again on different slides/pages - results accumulate automatically.
 
-**Quick install:** Open [`install.html`](install.html) in your browser for easy copy-to-clipboard installation.
-
-**Minified scripts:** Use `dist/*.min.js` for maximum portability (~63% smaller, no comments).
+**Minified scripts:** Use `dist/*.min.js` for maximum portability (~63% smaller).
 
 ## Available Scripts
 
@@ -37,19 +50,35 @@ For the Chrome extension version, see the [`extension` branch](../../tree/extens
 The most comprehensive script - handles SCORM, TLA/xAPI, and Storyline content automatically.
 
 ```javascript
-// Paste lib/lms-extractor-complete.js into console, then:
+// Paste script - auto-runs and returns result object:
+// { context: {...}, questions: [...] }
 
-// Extract all questions and answers
-await LMSExtractor.extract()
+// Questions are grouped with their answers:
+// {
+//   source: 'Storyline',
+//   slideId: '5x...',
+//   question: 'Which of the following...?',
+//   questionType: 'multiple-choice',
+//   answers: [
+//     { text: 'Option A', correct: false, accType: 'radiobutton' },
+//     { text: 'Option B', correct: true, accType: 'radiobutton' }
+//   ]
+// }
 
-// View correct answers only
+// Get questions with correct answers
 LMSExtractor.getCorrectAnswers()
 
-// Mark course as complete
-await LMSExtractor.complete(100)  // 100 = score
+// Get flat list of correct answer texts
+LMSExtractor.getCorrectAnswerTexts()
 
-// Download results
-LMSExtractor.download('json')    // or 'csv', 'text'
+// Mark course as complete
+await LMSExtractor.complete(100)
+
+// Clear results and start fresh
+LMSExtractor.clear()
+
+// Run again without append
+await LMSExtractor.extract({ append: false })
 ```
 
 ---
