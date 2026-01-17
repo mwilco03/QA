@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LMS QA Validator - Deterministic Test Page</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .quiz-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .question {
+            font-weight: bold;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        .question-number {
+            color: #3b82f6;
+            margin-right: 8px;
+        }
+        .answers {
+            margin-left: 20px;
+        }
+        .answer {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+        }
+        .answer input {
+            margin-right: 10px;
+        }
+        .answer label {
+            cursor: pointer;
+        }
+        .answer[data-correct="true"] label::after {
+            content: " ✓";
+            color: #22c55e;
+            font-weight: bold;
+        }
+        select {
+            padding: 8px;
+            font-size: 1em;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            min-width: 200px;
+        }
+        h1 {
+            color: #1f2937;
+        }
+        h2 {
+            color: #374151;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 8px;
+        }
+        .test-info {
+            background: #dbeafe;
+            border: 1px solid #3b82f6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .test-info h3 {
+            margin-top: 0;
+            color: #1d4ed8;
+        }
+        .expected-results {
+            background: #f0fdf4;
+            border: 1px solid #22c55e;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .expected-results h3 {
+            margin-top: 0;
+            color: #166534;
+        }
+        .expected-results ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>LMS QA Validator - Deterministic Test Page</h1>
+
+    <div class="test-info">
+        <h3>Test Fixture Information</h3>
+        <p>This page contains fixed, known Q&A content for regression testing.</p>
+        <p>Run extraction against this page to verify the extraction pipeline produces consistent results.</p>
+        <p><strong>Expected extraction:</strong> 5 questions, 15 answers total, 5 correct answers identified.</p>
+    </div>
+
+    <!-- Section 1: Multiple Choice with Radio Buttons -->
+    <div class="quiz-container" data-question="1">
+        <h2>Section 1: Multiple Choice Questions</h2>
+
+        <div class="question">
+            <span class="question-number">Q1.</span>
+            What is the primary purpose of a SCORM API?
+        </div>
+        <div class="answers">
+            <div class="answer" data-correct="false">
+                <input type="radio" name="q1" id="q1a" value="a">
+                <label for="q1a">To style web pages</label>
+            </div>
+            <div class="answer" data-correct="true">
+                <input type="radio" name="q1" id="q1b" value="b" data-correct="true">
+                <label for="q1b">To enable communication between content and an LMS</label>
+            </div>
+            <div class="answer" data-correct="false">
+                <input type="radio" name="q1" id="q1c" value="c">
+                <label for="q1c">To compress video files</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: True/False Questions -->
+    <div class="quiz-container" data-question="2">
+        <div class="question">
+            <span class="question-number">Q2.</span>
+            True or False: xAPI statements can be sent to any Learning Record Store (LRS)?
+        </div>
+        <div class="answers">
+            <div class="answer" data-correct="true">
+                <input type="radio" name="q2" id="q2a" value="true" data-correct="true">
+                <label for="q2a">True</label>
+            </div>
+            <div class="answer" data-correct="false">
+                <input type="radio" name="q2" id="q2b" value="false">
+                <label for="q2b">False</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Select Dropdown -->
+    <div class="quiz-container" data-question="3">
+        <div class="question">
+            <span class="question-number">Q3.</span>
+            <label for="q3select">Which authoring tool creates .story files?</label>
+        </div>
+        <div class="answers">
+            <select id="q3select" name="q3">
+                <option value="">-- Select an option --</option>
+                <option value="captivate">Adobe Captivate</option>
+                <option value="storyline" data-correct="true">Articulate Storyline</option>
+                <option value="lectora">Lectora</option>
+                <option value="ispring">iSpring</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Section 4: Multiple Response (Checkboxes) -->
+    <div class="quiz-container" data-question="4">
+        <div class="question">
+            <span class="question-number">Q4.</span>
+            Which of the following are valid SCORM 2004 API methods? (Select all that apply)
+        </div>
+        <div class="answers">
+            <div class="answer" data-correct="true">
+                <input type="checkbox" name="q4" id="q4a" value="Initialize" data-correct="true">
+                <label for="q4a">Initialize()</label>
+            </div>
+            <div class="answer" data-correct="true">
+                <input type="checkbox" name="q4" id="q4b" value="GetValue" data-correct="true">
+                <label for="q4b">GetValue()</label>
+            </div>
+            <div class="answer" data-correct="false">
+                <input type="checkbox" name="q4" id="q4c" value="SubmitAnswer">
+                <label for="q4c">SubmitAnswer()</label>
+            </div>
+            <div class="answer" data-correct="true">
+                <input type="checkbox" name="q4" id="q4d" value="Commit" data-correct="true">
+                <label for="q4d">Commit()</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 5: Fieldset with Legend -->
+    <div class="quiz-container" data-question="5">
+        <fieldset>
+            <legend class="question">
+                <span class="question-number">Q5.</span>
+                What does cmi5 stand for in the context of e-learning?
+            </legend>
+            <div class="answers">
+                <div class="answer" data-correct="false">
+                    <input type="radio" name="q5" id="q5a" value="a">
+                    <label for="q5a">Computer Managed Instruction version 5</label>
+                </div>
+                <div class="answer" data-correct="true">
+                    <input type="radio" name="q5" id="q5b" value="b" data-correct="true">
+                    <label for="q5b">A specification built on xAPI for LMS integration</label>
+                </div>
+                <div class="answer" data-correct="false">
+                    <input type="radio" name="q5" id="q5c" value="c">
+                    <label for="q5c">Content Management Interface 5</label>
+                </div>
+            </div>
+        </fieldset>
+    </div>
+
+    <!-- Expected Results for Verification -->
+    <div class="expected-results">
+        <h3>Expected Extraction Results</h3>
+        <p>When the extraction pipeline processes this page, it should produce:</p>
+        <ul>
+            <li><strong>Total Questions:</strong> 5</li>
+            <li><strong>Total Answers:</strong> 15</li>
+            <li><strong>Correct Answers:</strong> 5 (one per question, except Q4 which has 3)</li>
+            <li><strong>Question Types:</strong>
+                <ul>
+                    <li>Q1: Multiple Choice (choice)</li>
+                    <li>Q2: True/False (true-false)</li>
+                    <li>Q3: Single Select (choice)</li>
+                    <li>Q4: Multiple Response (multiple-choice)</li>
+                    <li>Q5: Multiple Choice (choice)</li>
+                </ul>
+            </li>
+            <li><strong>Status:</strong> <code>success</code></li>
+            <li><strong>Authoring Tool:</strong> <code>generic</code> (no specific tool markers)</li>
+        </ul>
+
+        <h4>Correct Answer Verification:</h4>
+        <ul>
+            <li>Q1: "To enable communication between content and an LMS"</li>
+            <li>Q2: "True"</li>
+            <li>Q3: "Articulate Storyline"</li>
+            <li>Q4: "Initialize()", "GetValue()", "Commit()"</li>
+            <li>Q5: "A specification built on xAPI for LMS integration"</li>
+        </ul>
+    </div>
+
+    <!-- Debug Script -->
+    <script>
+        // Expose test expectations for automated verification
+        window.__TEST_EXPECTATIONS__ = {
+            totalQuestions: 5,
+            totalAnswers: 15,
+            correctAnswers: 7, // Q1:1, Q2:1, Q3:1, Q4:3, Q5:1
+            questions: [
+                {
+                    number: 1,
+                    text: "What is the primary purpose of a SCORM API?",
+                    answerCount: 3,
+                    correctAnswer: "To enable communication between content and an LMS"
+                },
+                {
+                    number: 2,
+                    text: "True or False: xAPI statements can be sent to any Learning Record Store (LRS)?",
+                    answerCount: 2,
+                    correctAnswer: "True"
+                },
+                {
+                    number: 3,
+                    text: "Which authoring tool creates .story files?",
+                    answerCount: 4,
+                    correctAnswer: "Articulate Storyline"
+                },
+                {
+                    number: 4,
+                    text: "Which of the following are valid SCORM 2004 API methods?",
+                    answerCount: 4,
+                    correctAnswers: ["Initialize()", "GetValue()", "Commit()"]
+                },
+                {
+                    number: 5,
+                    text: "What does cmi5 stand for in the context of e-learning?",
+                    answerCount: 3,
+                    correctAnswer: "A specification built on xAPI for LMS integration"
+                }
+            ],
+            expectedStatus: "success",
+            expectedTool: "generic"
+        };
+
+        // Verification function
+        window.verifyExtractionResult = function(result) {
+            const expectations = window.__TEST_EXPECTATIONS__;
+            const errors = [];
+
+            if (result.questions.length !== expectations.totalQuestions) {
+                errors.push(`Question count: expected ${expectations.totalQuestions}, got ${result.questions.length}`);
+            }
+
+            if (result.status !== expectations.expectedStatus) {
+                errors.push(`Status: expected ${expectations.expectedStatus}, got ${result.status}`);
+            }
+
+            const correctCount = result.answers.filter(a => a.isCorrect).length;
+            if (correctCount !== expectations.correctAnswers) {
+                errors.push(`Correct answers: expected ${expectations.correctAnswers}, got ${correctCount}`);
+            }
+
+            return {
+                passed: errors.length === 0,
+                errors,
+                summary: errors.length === 0
+                    ? 'All extraction tests passed!'
+                    : `${errors.length} test(s) failed`
+            };
+        };
+
+        console.log('[Test Page] Deterministic test page loaded');
+        console.log('[Test Page] Expected questions:', window.__TEST_EXPECTATIONS__.totalQuestions);
+        console.log('[Test Page] Use window.verifyExtractionResult(result) to verify extraction output');
+    </script>
+</body>
+</html>
