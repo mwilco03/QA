@@ -21,12 +21,7 @@ const MSG = Object.freeze({
     CMI_DATA: 'CMI_DATA',
     TEST_RESULT: 'TEST_RESULT',
     SET_COMPLETION_RESULT: 'SET_COMPLETION_RESULT',
-    AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT',
-    SELECTOR_ACTIVATED: 'SELECTOR_ACTIVATED',
-    SELECTOR_DEACTIVATED: 'SELECTOR_DEACTIVATED',
-    SELECTOR_RULE_CREATED: 'SELECTOR_RULE_CREATED',
-    EXTRACTION_COMPLETE: 'EXTRACTION_COMPLETE',
-    EXTRACTION_ERROR: 'EXTRACTION_ERROR'
+    AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT'
 });
 
 const LMS_URL_PATTERNS = [
@@ -412,38 +407,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             notifyPopup(MSG.AUTO_SELECT_RESULT, { tabId, ...message.payload });
             break;
 
-        case MSG.SELECTOR_ACTIVATED:
-            log.info(`Selector activated on tab ${tabId}`);
-            // Start domain session for this tab's domain
-            if (url) DomainSession.startSession(tabId, url);
-            notifyPopup(MSG.SELECTOR_ACTIVATED, { tabId });
-            break;
-
-        case MSG.SELECTOR_DEACTIVATED:
-            log.info(`Selector deactivated on tab ${tabId}`);
-            notifyPopup(MSG.SELECTOR_DEACTIVATED, { tabId });
-            break;
-
-        case MSG.SELECTOR_RULE_CREATED:
-            log.info(`Selector rule created`, message.payload?.rule);
-            storeSelectionRule(message.payload?.rule);
-            notifyPopup(MSG.SELECTOR_RULE_CREATED, { tabId, rule: message.payload?.rule });
-            break;
-
-        case MSG.EXTRACTION_COMPLETE:
-            log.info(`Extraction complete on tab ${tabId}`);
-            TabState.update(tabId, {
-                results: message.payload,
-                lastScan: Date.now()
-            });
-            notifyPopup(MSG.EXTRACTION_COMPLETE, { tabId, results: message.payload });
-            break;
-
-        case MSG.EXTRACTION_ERROR:
-            log.error(`Extraction error on tab ${tabId}:`, message.payload?.error);
-            notifyPopup(MSG.EXTRACTION_ERROR, { tabId, error: message.payload?.error });
-            break;
-
         case MSG.STATE:
             TabState.update(tabId, { results: message.payload });
             notifyPopup('STATE_UPDATE', { tabId, results: message.payload });
@@ -481,18 +444,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             });
             return true;
 
-        case 'ACTIVATE_SELECTOR_TAB':
-            activateSelectorOnTab(message.targetTabId).then(result => {
-                sendResponse(result);
-            });
-            return true;
-
-        case 'APPLY_RULE_TAB':
-            applyRuleOnTab(message.targetTabId, message.rule).then(result => {
-                sendResponse(result);
-            });
-            return true;
-
         case 'DOWNLOAD':
             handleDownload(message.format, message.data, message.filename);
             break;
@@ -507,30 +458,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 log.info(`Cleared state for tab ${message.tabId}`);
             }
             break;
-
-        case 'GET_SELECTOR_RULES':
-            getSelectionRules(message.urlPattern).then(rules => {
-                sendResponse({ rules });
-            });
-            return true;
-
-        case 'GET_ALL_SELECTOR_RULES':
-            getAllSelectionRules().then(rules => {
-                sendResponse({ rules });
-            });
-            return true;
-
-        case 'DELETE_SELECTOR_RULE':
-            deleteSelectionRule(message.urlPattern).then(() => {
-                sendResponse({ success: true });
-            });
-            return true;
-
-        case 'IMPORT_SELECTOR_RULES':
-            importSelectionRules(message.rules).then((result) => {
-                sendResponse(result);
-            });
-            return true;
 
         case 'START_DOMAIN_SESSION':
             if (message.url || url) {
@@ -588,19 +515,7 @@ async function notifyPopup(type, payload) {
     }
 }
 
-chrome.runtime.onConnect.addListener((port) => {
-    if (port.name === 'popup') {
-        port.onMessage.addListener(async (msg) => {
-            if (msg.type === 'GET_CURRENT_STATE') {
-                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                if (tab) {
-                    const state = TabState.get(tab.id);
-                    port.postMessage({ type: 'CURRENT_STATE', tabId: tab.id, state });
-                }
-            }
-        });
-    }
-});
+// Port-based communication removed (was dead code — no caller)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RELATED TABS
@@ -732,159 +647,6 @@ async function scanSpecificTab(tabId) {
     }
 }
 
-async function activateSelectorOnTab(tabId) {
-    try {
-        await injectContentScript(tabId);
-        await new Promise(r => setTimeout(r, 100));
-        await chrome.tabs.sendMessage(tabId, { type: 'ACTIVATE_SELECTOR' });
-
-        // Focus the tab so user can interact with selector
-        const tab = await chrome.tabs.get(tabId);
-        await chrome.tabs.update(tabId, { active: true });
-        if (tab.windowId) {
-            await chrome.windows.update(tab.windowId, { focused: true });
-        }
-
-        return { success: true, tabId };
-    } catch (error) {
-        log.error(`Failed to activate selector on tab ${tabId}: ${error.message}`);
-        return { success: false, error: error.message, tabId };
-    }
-}
-
-async function applyRuleOnTab(tabId, rule) {
-    try {
-        await injectContentScript(tabId);
-        await new Promise(r => setTimeout(r, 100));
-        await chrome.tabs.sendMessage(tabId, { type: 'APPLY_SELECTOR_RULE', rule, hybrid: true });
-        return { success: true, tabId };
-    } catch (error) {
-        log.error(`Failed to apply rule on tab ${tabId}: ${error.message}`);
-        return { success: false, error: error.message, tabId };
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SELECTOR RULES STORAGE
-// ═══════════════════════════════════════════════════════════════════════════
-
-async function storeSelectionRule(rule) {
-    if (!rule?.urlPattern) {
-        log.error('Cannot store rule without urlPattern');
-        return;
-    }
-
-    try {
-        const data = await chrome.storage.local.get('selectorRules');
-        const rules = data.selectorRules || {};
-
-        rules[rule.urlPattern] = {
-            questionSelector: rule.questionSelector,
-            answerSelector: rule.answerSelector,
-            correctSelector: rule.correctSelector,
-            created: rule.created || new Date().toISOString(),
-            questionCount: rule.questionCount,
-            answerCount: rule.answerCount
-        };
-
-        await chrome.storage.local.set({ selectorRules: rules });
-        log.info(`Stored selector rule for ${rule.urlPattern}`);
-    } catch (error) {
-        log.error('Failed to store selector rule:', error.message);
-    }
-}
-
-async function getSelectionRules(urlPattern) {
-    try {
-        const data = await chrome.storage.local.get('selectorRules');
-        const rules = data.selectorRules || {};
-
-        if (urlPattern) {
-            // Return exact match or matching patterns
-            const exactMatch = rules[urlPattern];
-            if (exactMatch) return exactMatch;
-
-            // Try to find a matching wildcard pattern
-            for (const [pattern, rule] of Object.entries(rules)) {
-                if (urlMatchesPattern(urlPattern, pattern)) {
-                    return rule;
-                }
-            }
-            return null;
-        }
-
-        return rules;
-    } catch (error) {
-        log.error('Failed to get selector rules:', error.message);
-        return null;
-    }
-}
-
-async function getAllSelectionRules() {
-    try {
-        const data = await chrome.storage.local.get('selectorRules');
-        return data.selectorRules || {};
-    } catch (error) {
-        log.error('Failed to get all selector rules:', error.message);
-        return {};
-    }
-}
-
-async function deleteSelectionRule(urlPattern) {
-    if (!urlPattern) return;
-
-    try {
-        const data = await chrome.storage.local.get('selectorRules');
-        const rules = data.selectorRules || {};
-
-        delete rules[urlPattern];
-
-        await chrome.storage.local.set({ selectorRules: rules });
-        log.info(`Deleted selector rule for ${urlPattern}`);
-    } catch (error) {
-        log.error('Failed to delete selector rule:', error.message);
-    }
-}
-
-async function importSelectionRules(newRules) {
-    if (!newRules || typeof newRules !== 'object') {
-        return { success: false, error: 'Invalid rules object' };
-    }
-
-    try {
-        const data = await chrome.storage.local.get('selectorRules');
-        const existingRules = data.selectorRules || {};
-
-        // Merge new rules with existing (new rules overwrite existing)
-        const mergedRules = { ...existingRules, ...newRules };
-
-        await chrome.storage.local.set({ selectorRules: mergedRules });
-
-        const importedCount = Object.keys(newRules).length;
-        log.info(`Imported ${importedCount} selector rules`);
-
-        return { success: true, imported: importedCount };
-    } catch (error) {
-        log.error('Failed to import selector rules:', error.message);
-        return { success: false, error: error.message };
-    }
-}
-
-function urlMatchesPattern(url, pattern) {
-    // Convert pattern to regex
-    // example.com/course/* -> example\.com/course/.*
-    const regexPattern = pattern
-        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')  // Escape special chars except *
-        .replace(/\*/g, '.*');                    // Convert * to .*
-
-    try {
-        const regex = new RegExp(`^${regexPattern}$`);
-        return regex.test(url);
-    } catch {
-        return false;
-    }
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // STORAGE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -959,9 +721,12 @@ function handleDownload(format, content, filename) {
 // INITIALIZATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-chrome.runtime.onInstalled.addListener(() => {
-    log.info('Extension installed');
-    chrome.storage.local.set({ scanHistory: [] });
+chrome.runtime.onInstalled.addListener((details) => {
+    log.info(`Extension ${details.reason} (v${chrome.runtime.getManifest().version})`);
+    // Only initialize storage on fresh install, not on updates
+    if (details.reason === 'install') {
+        chrome.storage.local.set({ scanHistory: [] });
+    }
 });
 
 log.info('Service worker initialized');

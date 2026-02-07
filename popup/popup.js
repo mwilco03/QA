@@ -29,12 +29,7 @@
         SET_COMPLETION_RESULT: 'SET_COMPLETION_RESULT',
         CMI_DATA: 'CMI_DATA',
         AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT',
-        STATE_UPDATE: 'STATE_UPDATE',
-        SELECTOR_ACTIVATED: 'SELECTOR_ACTIVATED',
-        SELECTOR_DEACTIVATED: 'SELECTOR_DEACTIVATED',
-        SELECTOR_RULE_CREATED: 'SELECTOR_RULE_CREATED',
-        EXTRACTION_COMPLETE: 'EXTRACTION_COMPLETE',
-        EXTRACTION_ERROR: 'EXTRACTION_ERROR'
+        STATE_UPDATE: 'STATE_UPDATE'
     });
 
     const STATUS = Object.freeze({
@@ -85,11 +80,6 @@
         tabId: null,
         tabUrl: '',
         results: null,
-        currentRule: null,
-        selectorActive: false,
-        settings: {
-            autoScan: false
-        },
 
         reset() {
             this.results = null;
@@ -126,9 +116,7 @@
             'qa-count', 'apis-count', 'correct-count', 'logs-count',
             'scorm-controls', 'completion-status', 'completion-score',
             'btn-test-api', 'btn-set-completion',
-            'quick-actions', 'btn-auto-select', 'btn-element-selector',
-            'saved-rules', 'rule-info', 'btn-apply-rule', 'btn-delete-rule',
-            'rules-management', 'rules-count', 'btn-export-rules', 'btn-import-rules', 'rules-file-input',
+            'quick-actions', 'btn-auto-select',
             'btn-export-json', 'btn-export-csv', 'btn-export-txt',
             'toast'
         ];
@@ -385,7 +373,6 @@
                     <span class="related-icon" title="${tooltip}">${icons[tab.relationship] || '?'}</span>
                     <span class="related-title" title="${escapeHtml(tab.title)}${domainInfo}">${truncate(tab.title, 30)}</span>
                     <div class="related-actions">
-                        <button class="btn-sm btn-pick-tab" data-tab-id="${tab.id}" title="Pick Q&A Elements">Pick</button>
                         <button class="btn-sm btn-scan-tab" data-tab-id="${tab.id}" title="Pattern Scan">Scan</button>
                         <button class="btn-sm btn-focus-tab" data-tab-id="${tab.id}" title="Focus Window">Go</button>
                     </div>
@@ -638,35 +625,6 @@
             }
         },
 
-        async activateSelectorOnTab(tabId) {
-            const response = await Extension.sendToServiceWorker('ACTIVATE_SELECTOR_TAB', { targetTabId: tabId });
-            if (response?.success) {
-                Toast.success('Selector activated - switch to that window');
-                // Close popup so user can interact with the other window
-                window.close();
-            } else {
-                Toast.error('Failed to activate selector: ' + (response?.error || 'Unknown'));
-            }
-        },
-
-        async applyRuleOnTab(tabId) {
-            if (!State.currentRule) {
-                Toast.error('No rule to apply');
-                return;
-            }
-
-            const response = await Extension.sendToServiceWorker('APPLY_RULE_TAB', {
-                targetTabId: tabId,
-                rule: State.currentRule
-            });
-
-            if (response?.success) {
-                Toast.success('Rule applied to related window');
-            } else {
-                Toast.error('Failed to apply rule: ' + (response?.error || 'Unknown'));
-            }
-        },
-
         focusTab(tabId) {
             chrome.tabs.update(tabId, { active: true });
             chrome.tabs.get(tabId, (tab) => {
@@ -676,213 +634,6 @@
             });
         },
 
-        async activateSelector() {
-            try {
-                $.btnElementSelector.disabled = true;
-                $.btnElementSelector.innerHTML = `
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3z"/>
-                        <path d="M15 15h6v6h-6z"/>
-                        <circle cx="12" cy="12" r="2"/>
-                    </svg>
-                    Selecting...
-                `;
-                State.selectorActive = true;
-
-                await Extension.sendToContent('ACTIVATE_SELECTOR');
-                Toast.info('Click elements on the page to select Q&A');
-
-                // Close popup so user can interact with page
-                // window.close();
-            } catch (error) {
-                Toast.error('Failed to activate selector: ' + error.message);
-                $.btnElementSelector.disabled = false;
-                this.resetSelectorButton();
-            }
-        },
-
-        resetSelectorButton() {
-            $.btnElementSelector.disabled = false;
-            $.btnElementSelector.innerHTML = `
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3z"/>
-                    <path d="M15 15h6v6h-6z"/>
-                    <circle cx="12" cy="12" r="2"/>
-                </svg>
-                Pick Q&A Elements
-            `;
-            State.selectorActive = false;
-        },
-
-        async checkForSavedRule() {
-            try {
-                const urlPattern = this.getURLPattern(State.tabUrl);
-                const response = await Extension.sendToServiceWorker('GET_SELECTOR_RULES', { urlPattern });
-
-                if (response?.rules) {
-                    State.currentRule = response.rules;
-                    this.showSavedRule(response.rules, urlPattern);
-                } else {
-                    this.hideSavedRule();
-                }
-            } catch (error) {
-                console.error('Failed to check for saved rule:', error);
-            }
-        },
-
-        getURLPattern(url) {
-            if (!url) return null;
-            try {
-                const parsed = new URL(url);
-                let path = parsed.pathname.replace(/\/\d+/g, '/*');
-                path = path.replace(/\/$/, '') || '/';
-                return `${parsed.hostname}${path}`;
-            } catch {
-                return null;
-            }
-        },
-
-        showSavedRule(rule, pattern) {
-            if (!$.savedRules || !$.ruleInfo) return;
-
-            $.savedRules.style.display = 'block';
-            $.ruleInfo.innerHTML = `
-                <div class="rule-pattern">${escapeHtml(pattern)}</div>
-                <div class="rule-stats">
-                    Questions: ${rule.questionCount || '?'} |
-                    Answers: ${rule.answerCount || '?'}
-                </div>
-            `;
-        },
-
-        hideSavedRule() {
-            if ($.savedRules) {
-                $.savedRules.style.display = 'none';
-            }
-            State.currentRule = null;
-        },
-
-        async applyRule() {
-            if (!State.currentRule) {
-                Toast.error('No rule to apply');
-                return;
-            }
-
-            Toast.info('Applying saved rule...');
-            // This will be implemented to use the saved selectors
-            // to extract Q&A from the page
-            await Extension.sendToContent('APPLY_SELECTOR_RULE', { rule: State.currentRule });
-        },
-
-        async deleteRule() {
-            const urlPattern = this.getURLPattern(State.tabUrl);
-            if (!urlPattern) return;
-
-            await Extension.sendToServiceWorker('DELETE_SELECTOR_RULE', { urlPattern });
-            this.hideSavedRule();
-            await this.loadRulesCount();
-            Toast.success('Rule deleted');
-        },
-
-        async loadRulesCount() {
-            try {
-                const response = await Extension.sendToServiceWorker('GET_ALL_SELECTOR_RULES');
-                const rules = response?.rules || {};
-                const count = Object.keys(rules).length;
-
-                UI.updateBadge($.rulesCount, count);
-            } catch (error) {
-                console.error('Failed to load rules count:', error);
-            }
-        },
-
-        async exportRules() {
-            try {
-                const response = await Extension.sendToServiceWorker('GET_ALL_SELECTOR_RULES');
-                const rules = response?.rules || {};
-
-                if (Object.keys(rules).length === 0) {
-                    Toast.error('No rules to export');
-                    return;
-                }
-
-                const exportData = {
-                    version: '3.2.0',
-                    exportedAt: new Date().toISOString(),
-                    rules: rules
-                };
-
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                const data = JSON.stringify(exportData, null, 2);
-                const filename = `lms-qa-rules-${timestamp}.json`;
-
-                this.download(data, filename, 'json');
-                Toast.success(`Exported ${Object.keys(rules).length} rule(s)`);
-            } catch (error) {
-                Toast.error('Failed to export rules: ' + error.message);
-            }
-        },
-
-        async importRules() {
-            $.rulesFileInput?.click();
-        },
-
-        async handleRulesFileSelect(event) {
-            const file = event.target.files?.[0];
-            if (!file) return;
-
-            try {
-                const text = await file.text();
-                const data = JSON.parse(text);
-
-                // Validate structure
-                if (!data.rules || typeof data.rules !== 'object') {
-                    Toast.error('Invalid rules file format');
-                    return;
-                }
-
-                // Validate each rule
-                const validRules = {};
-                let validCount = 0;
-                let skippedCount = 0;
-
-                for (const [pattern, rule] of Object.entries(data.rules)) {
-                    if (this.isValidRule(rule)) {
-                        validRules[pattern] = rule;
-                        validCount++;
-                    } else {
-                        skippedCount++;
-                    }
-                }
-
-                if (validCount === 0) {
-                    Toast.error('No valid rules found in file');
-                    return;
-                }
-
-                // Import the rules
-                await Extension.sendToServiceWorker('IMPORT_SELECTOR_RULES', { rules: validRules });
-                await this.loadRulesCount();
-                await this.checkForSavedRule();
-
-                if (skippedCount > 0) {
-                    Toast.success(`Imported ${validCount} rule(s), skipped ${skippedCount} invalid`);
-                } else {
-                    Toast.success(`Imported ${validCount} rule(s)`);
-                }
-            } catch (error) {
-                Toast.error('Failed to import: ' + error.message);
-            }
-
-            // Clear the file input for future imports
-            event.target.value = '';
-        },
-
-        isValidRule(rule) {
-            return rule &&
-                   typeof rule.questionSelector === 'string' &&
-                   typeof rule.answerSelector === 'string';
-        }
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -959,48 +710,6 @@
             }
         },
 
-        [MSG.SELECTOR_ACTIVATED]: () => {
-            State.selectorActive = true;
-            Toast.info('Selector active - pick elements on the page');
-        },
-
-        [MSG.SELECTOR_DEACTIVATED]: () => {
-            Actions.resetSelectorButton();
-            State.selectorActive = false;
-        },
-
-        [MSG.SELECTOR_RULE_CREATED]: (payload) => {
-            Actions.resetSelectorButton();
-            State.selectorActive = false;
-
-            if (payload.rule) {
-                State.currentRule = payload.rule;
-                Actions.showSavedRule(payload.rule, payload.rule.urlPattern);
-                Toast.success(`Rule saved! Q:${payload.rule.questionCount} A:${payload.rule.answerCount}`);
-            }
-        },
-
-        [MSG.EXTRACTION_COMPLETE]: (payload) => {
-            UI.setStatus(STATUS.SUCCESS);
-
-            if (payload.results) {
-                Renderer.renderAll(payload.results);
-                const qCount = payload.results.qa?.questions || 0;
-                const aCount = payload.results.qa?.items?.filter(i => i.type === 'answer').length || 0;
-                const apiCount = payload.results.apis?.length || 0;
-
-                let msg = `Extracted ${qCount} questions, ${aCount} answers`;
-                if (apiCount > 0) {
-                    msg += `, ${apiCount} API(s)`;
-                }
-                Toast.success(msg);
-            }
-        },
-
-        [MSG.EXTRACTION_ERROR]: (payload) => {
-            UI.setStatus(STATUS.ERROR);
-            Toast.error(payload.error || 'Extraction failed');
-        }
     };
 
     chrome.runtime.onMessage.addListener((message) => {
@@ -1025,16 +734,6 @@
 
         // Quick actions
         $.btnAutoSelect?.addEventListener('click', () => Actions.autoSelect());
-        $.btnElementSelector?.addEventListener('click', () => Actions.activateSelector());
-
-        // Saved rules
-        $.btnApplyRule?.addEventListener('click', () => Actions.applyRule());
-        $.btnDeleteRule?.addEventListener('click', () => Actions.deleteRule());
-
-        // Rules management (export/import)
-        $.btnExportRules?.addEventListener('click', () => Actions.exportRules());
-        $.btnImportRules?.addEventListener('click', () => Actions.importRules());
-        $.rulesFileInput?.addEventListener('change', (e) => Actions.handleRulesFileSelect(e));
 
         // Export
         $.btnExportJson?.addEventListener('click', () => Actions.export('json'));
@@ -1047,13 +746,9 @@
         // Related tabs
         $.btnRefreshRelated?.addEventListener('click', () => Actions.loadRelatedTabs());
         $.relatedList?.addEventListener('click', (e) => {
-            const pickBtn = e.target.closest('.btn-pick-tab');
             const scanBtn = e.target.closest('.btn-scan-tab');
             const focusBtn = e.target.closest('.btn-focus-tab');
 
-            if (pickBtn) {
-                Actions.activateSelectorOnTab(parseInt(pickBtn.dataset.tabId, 10));
-            }
             if (scanBtn) {
                 Actions.scanRelatedTab(parseInt(scanBtn.dataset.tabId, 10));
             }
@@ -1122,20 +817,15 @@
             UI.setTabUrl(State.tabUrl);
         }
 
-        // Load existing state
-        const existingState = await Extension.sendToServiceWorker('GET_TAB_STATE');
+        // Load existing state and related tabs in parallel
+        const [existingState] = await Promise.all([
+            Extension.sendToServiceWorker('GET_TAB_STATE'),
+            Actions.loadRelatedTabs()
+        ]);
+
         if (existingState?.results) {
             Renderer.renderAll(existingState.results);
         }
-
-        // Load related tabs
-        await Actions.loadRelatedTabs();
-
-        // Check for saved selector rules
-        await Actions.checkForSavedRule();
-
-        // Load rules count
-        await Actions.loadRulesCount();
 
         UI.setStatus(STATUS.READY);
 
