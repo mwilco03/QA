@@ -1,257 +1,218 @@
-# LMS QA Validator v3.2.0
+# LMS QA Validator v3.4.0
 
-A Chrome extension for extracting Q&A content from Learning Management System (LMS) courses, detecting SCORM/xAPI APIs, and validating eLearning content.
+A Chrome extension for validating eLearning content delivery. Detects and interacts with **SCORM 1.2**, **SCORM 2004**, **xAPI**, **AICC**, and **CMI5** APIs. Extracts Q&A content, tests API connectivity, and sets completion/scores — all from the browser.
+
+## Quick Start
+
+### Prerequisites
+- Google Chrome (v102 or later)
+- The extension source code (this repo)
+
+### Install (3 steps)
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/mwilco03/QA.git
+
+# 2. Open Chrome extensions page
+#    Navigate to: chrome://extensions/
+
+# 3. Load the extension
+#    - Toggle "Developer mode" ON (top-right switch)
+#    - Click "Load unpacked"
+#    - Select the QA/ directory you just cloned
+```
+
+That's it. The extension icon appears in your toolbar.
+
+### First Use
+
+1. Navigate to any LMS course page
+2. Click the extension icon in the toolbar
+3. Click **Scan Page** — the extension will:
+   - Detect any SCORM/xAPI/AICC/CMI5 APIs on the page
+   - Extract Q&A content from quizzes
+   - Show results in the popup
+
+### Set a Course Complete
+
+1. Scan the page (APIs must be detected first)
+2. In the **SCORM Controls** section:
+   - Select a status (`Completed`, `Passed`, `Failed`, `Incomplete`)
+   - Set a score (0–100)
+   - Click **Set**
+
+The extension handles the full spec-compliant sequence: sets status, score, exit mode, commits, and terminates the session.
+
+### Test an API
+
+Click **Test API** to verify the LMS API is responding. The extension will:
+- Call `LMSInitialize` / `Initialize` (SCORM)
+- Send `GetParam` (AICC)
+- Retrieve an auth token (CMI5)
+- Verify the send function exists (xAPI)
+
+## Supported LMS Standards
+
+| Standard | Detection | Test | Set Completion | Data Read |
+|----------|-----------|------|----------------|-----------|
+| SCORM 1.2 | Window/parent/opener frame traversal for `API` object | `LMSInitialize` + `LMSGetValue` | Full: status, score (raw/min/max), exit, commit, finish | 14 CMI elements |
+| SCORM 2004 | Frame traversal for `API_1484_11` object | `Initialize` + `GetValue` | Full: completion + success status, scaled/raw score, exit, commit, terminate | 16 CMI elements |
+| xAPI | `ADL.XAPIWrapper`, `TinCan`, `sendStatement`/`saveStatement` | Verifies send function + LRS config | Sends completion/passed/failed statement | Via LRS queries |
+| AICC | URL params: `aicc_sid` + `aicc_url` | `GetParam` HACP request | `PutParam` + `ExitAU` HACP requests | `GetParam` response parsing |
+| CMI5 | URL params: `endpoint`, `fetch`, `actor`, `registration`, `activityId` | Auth token retrieval from fetch URL | xAPI statement with cmi5 context category | Via LRS queries |
 
 ## Features
 
-### Visual Element Selector (NEW in v3.2)
-- **Pick Q&A Elements**: Click to select question and answer elements visually
-- **Smart CSS Selectors**: Automatically generates robust selectors for similar elements
-- **URL Pattern Rules**: Rules saved per URL pattern, reused on return visits
-- **DOM Proximity Grouping**: Intelligently groups answers with their questions
-- **Correct Answer Detection**: Pick elements that indicate correct answers
-- **Hybrid Extraction**: Automatically detects SCORM/xAPI APIs alongside Q&A extraction
-- **Export/Import Rules**: Share selector rules between team members or LMS instances
+### LMS API Harness
+- Discovers APIs across window, parent, top, and opener frame chains (up to 7 levels per ADL spec)
+- Tests API connectivity with error code checking (`LMSGetLastError` / `GetLastError`)
+- Sets completion with full spec-compliant sequences (not just `SetValue` — includes commit and terminate)
+- Reads CMI data model elements including bookmarks, entry mode, credit, mastery scores
 
 ### Content Extraction
-- **Storyline Support**: Extracts Q&A from Articulate Storyline courses by analyzing slide data
+- **Storyline Support**: Extracts Q&A from Articulate Storyline data files
 - **DOM Quiz Detection**: Finds form-based quizzes (select, radio, checkbox) with correct answer indicators
-- **Visual Selector**: User-guided element picking for any LMS layout
+- **Auto-Select Answers**: Fills in detected correct answers for form quizzes
 
-### SCORM/xAPI Integration
-- **API Detection**: Finds SCORM 1.2, SCORM 2004, xAPI (TCAPI/Tin Can), and AICC APIs
-- **Wrapper Support**: Detects pipwerks, xAPIWrapper, ADL, and TinCanAPI libraries
-- **API Testing**: Verify API connectivity and functionality
-- **Completion Control**: Set completion status and scores directly
+### Multi-Window Support
+- Tracks parent/child/sibling tab relationships
+- Cross-domain session linking (LMS portal on one domain, content CDN on another)
+- Scan related windows from the popup
 
-### Productivity Features
-- **Auto-Select Answers**: Automatically fills in correct answers for form quizzes
-- **Multi-Window Support**: Track and scan related popup windows
-- **Export Options**: Export results as JSON, CSV, or TXT
+### Export
+- JSON (full data), CSV (Q&A table), TXT (answer key)
+- Keyboard shortcut: `Ctrl+E`
 
-## Installation
+## Keyboard Shortcuts
 
-1. Download or clone this repository
-2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable "Developer mode" (top right)
-4. Click "Load unpacked" and select the extension directory
-
-## Usage
-
-### Visual Element Selector (Recommended)
-
-The most accurate way to extract Q&A from any LMS:
-
-1. Navigate to an LMS course page with quiz content
-2. Click the extension icon
-3. Click **"Pick Q&A Elements"**
-4. **Step 1**: Click on any question text element (highlights in green)
-5. **Step 2**: Click on any answer choice element (highlights in blue)
-6. **Step 3**: Optionally click a "correct answer" indicator (or skip)
-7. Review the preview and click **"Save Rule"**
-
-On return visits to the same LMS:
-- The saved rule appears automatically
-- Click **"Apply Rule"** to extract Q&A instantly
-
-### Basic Scanning (Pattern Matching)
-1. Navigate to an LMS course page
-2. Click the extension icon
-3. Click "Scan Page"
-4. View extracted Q&A in the results tabs
-
-Note: Pattern matching may produce false positives. Visual selector is preferred.
-
-### Auto-Select Answers
-1. Scan the page first (using either method)
-2. Click "Auto-Select Answers" in Quick Actions
-3. The extension will fill in all detected correct answers
-
-### SCORM Controls
-When a SCORM API is detected:
-- **Test API**: Verify API communication
-- **Set Completion**: Mark course as complete with a score
-
-### Keyboard Shortcuts
-- `Ctrl+R`: Scan page
-- `Ctrl+F`: Focus search
-- `Ctrl+E`: Export as JSON
-- `Escape`: Clear search
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+R` | Scan page |
+| `Ctrl+F` | Focus search filter |
+| `Ctrl+E` | Export as JSON |
+| `Escape` | Clear search |
 
 ## Architecture
 
 ```
-lms-qa-extension/
-├── manifest.json           # Extension configuration
+QA/
+├── manifest.json              # Extension config (MV3)
 ├── background/
-│   └── service-worker.js   # Tab state, downloads, rule storage
+│   └── service-worker.js      # Tab state, domain sessions, downloads
 ├── content/
-│   └── content.js          # Bridge between page and extension contexts
+│   └── content.js             # Bridge: page context ↔ extension context
 ├── lib/
-│   ├── lms-qa-validator.js # Pattern-based extraction (legacy)
-│   └── element-selector.js # Visual picker & rule-based extraction (new)
+│   └── lms-qa-validator.js    # Core: API detection, testing, completion, extraction
 ├── popup/
-│   ├── popup.html          # Extension popup UI
-│   ├── popup.css           # Styles
-│   └── popup.js            # Popup logic
-└── icons/                  # Extension icons
+│   ├── popup.html             # Popup markup
+│   ├── popup.css              # Popup styles
+│   └── popup.js               # Popup logic
+├── icons/                     # Extension icons
+└── tests/
+    ├── validator.test.js      # Unit tests
+    └── test-runner.html       # Browser test runner
 ```
+
+### How It Works
+
+```
+┌─────────┐    chrome.runtime     ┌──────────────┐    chrome.tabs     ┌─────────────┐
+│  Popup   │ ◄──────────────────► │   Service    │ ◄────────────────► │   Content   │
+│ popup.js │    sendMessage        │   Worker     │    sendMessage     │  content.js │
+└─────────┘                       │ service-     │                    └──────┬──────┘
+                                  │ worker.js    │                           │
+                                  └──────────────┘                    postMessage('*')
+                                                                            │
+                                                                     ┌──────┴──────┐
+                                                                     │  Validator   │
+                                                                     │ (page ctx)   │
+                                                                     │ lms-qa-      │
+                                                                     │ validator.js │
+                                                                     └─────────────┘
+```
+
+1. **Popup** sends commands to the **service worker**, which routes them to the active tab's **content script**
+2. **Content script** bridges messages to the **validator** running in the page context (required to access SCORM/xAPI objects on `window`)
+3. **Validator** discovers APIs, runs tests, sets completion, and sends results back up the chain
 
 ### Component Responsibilities
 
-**Service Worker** (`background/service-worker.js`)
-- Manages tab state across navigation
-- Stores selector rules per URL pattern
-- Tracks parent/child window relationships
-- Handles file downloads
-
-**Content Script** (`content/content.js`)
-- Bridges page context and extension context
-- Injects validator or selector scripts
-- Forwards messages between contexts
-
-**Element Selector** (`lib/element-selector.js`)
-- Visual overlay for element picking
-- CSS selector generation (6 strategies)
-- DOM proximity grouping for Q&A correlation
-- Rule-based extraction engine
-
-**Validator** (`lib/lms-qa-validator.js`)
-- Pattern-based extraction (legacy)
-- Storyline slide data parsing
-- DOM quiz detection
-- SCORM/xAPI API discovery
-
-**Popup** (`popup/`)
-- User interface
-- Rule management
-- Results display
-
-## Selector Rule Storage
-
-Rules are stored by URL pattern:
-
-```
-example.com/course/*/module/* → {
-  questionSelector: ".quiz-question",
-  answerSelector: ".answer-choice",
-  correctSelector: "[data-correct='true']"
-}
-```
-
-Numeric path segments (like `/course/123/`) are wildcarded to `/*`, so one rule works for all courses on the same LMS.
+| Component | Role |
+|-----------|------|
+| **service-worker.js** | Tab state management, domain session tracking, parent/child tab linking, scan history storage, file downloads |
+| **content.js** | Message bridge between extension and page contexts, validator injection |
+| **lms-qa-validator.js** | API discovery (SCORM/xAPI/AICC/CMI5), API testing, completion setting, CMI data reads, DOM quiz extraction, Storyline parsing, export formatting |
+| **popup.js** | UI rendering, user actions, result display, search/filter |
 
 ## Console API
 
-### Validator API (Pattern Matching)
+The validator exposes a `window.LMS_QA` object in the page console:
+
 ```javascript
-// Get current state
-LMS_QA.getState()
+LMS_QA.scan()                                          // Run a full scan
+LMS_QA.getState()                                      // Current validator state
+LMS_QA.getQA()                                         // Extracted Q&A items
+LMS_QA.getAPIs()                                       // Detected LMS APIs
 
-// Get extracted Q&A
-LMS_QA.getQA()
+LMS_QA.testAPI(0)                                      // Test first detected API
+LMS_QA.setCompletion({ status: 'passed', score: 95 })  // Set completion
 
-// Get detected APIs
-LMS_QA.getAPIs()
+LMS_QA.autoSelect()                                    // Auto-fill correct answers
+LMS_QA.getDOMQuizzes()                                 // Get form-based quizzes
 
-// Run a scan
-LMS_QA.scan()
-
-// Auto-select correct answers
-LMS_QA.autoSelect()
-
-// Export results
-LMS_QA.export('json')
+LMS_QA.export('json')                                  // Export results
 LMS_QA.export('csv')
 LMS_QA.export('txt')
-
-// Get DOM quizzes
-LMS_QA.getDOMQuizzes()
-
-// Test SCORM API
-LMS_QA.testAPI(0)
-
-// Set completion
-LMS_QA.setCompletion({ status: 'completed', score: 100 })
-```
-
-### Selector API (Visual Picker)
-```javascript
-// Activate visual picker
-LMS_QA_SELECTOR.activate()
-
-// Deactivate
-LMS_QA_SELECTOR.deactivate()
-
-// Get current picker state
-LMS_QA_SELECTOR.getState()
-
-// Get URL pattern for current page
-LMS_QA_SELECTOR.getURLPattern()
-
-// Apply a rule manually
-LMS_QA_SELECTOR.applyRule({
-  questionSelector: '.q-text',
-  answerSelector: '.a-choice',
-  correctSelector: '.correct'
-})
-
-// Extract with selectors directly
-LMS_QA_SELECTOR.extractWithSelectors('.q', '.a', '.correct')
 ```
 
 ## Development
 
-### Code Quality Principles
-- User-guided extraction over pattern guessing
-- Consistent error handling
-- Modular architecture with clear boundaries
-- No external dependencies
-- Debounced UI operations
+### No Build Required
 
-### Testing
-Open `tests/test-runner.html` in a browser to run unit tests.
+The extension runs directly from source — no bundler, no transpiler, no `npm install`. Load the directory in Chrome and go.
+
+### Running Tests
+
+Open `tests/test-runner.html` in a browser to run the unit test suite.
+
+### Code Principles
+- Zero external dependencies
+- Pure vanilla JS (no frameworks)
+- Spec-compliant API interactions (validated against ADL/Rustici documentation)
+- Consistent error handling with try/catch throughout
+- Debounced UI operations
 
 ## Version History
 
+### v3.4.0 (Current)
+- **SCORM 1.2**: Added `LMSFinish` to completion flow, `cmi.core.exit`, `score.min/max`, error checking
+- **SCORM 2004**: Fixed invalid `'passed'` in `completion_status`, added `success_status`, `Terminate`, `cmi.exit`
+- **xAPI**: Fixed detection to traverse `ADL.XAPIWrapper`, added `TinCan` namespace, completion statements
+- **AICC**: Rewritten from scratch — URL param detection, HACP HTTP communication
+- **CMI5**: New — URL param detection, auth token retrieval, xAPI statement with cmi5 profile
+- **API search depth**: 5 → 7 per ADL spec
+- **onInstalled**: No longer destroys scan history on extension updates
+- **Shelved**: Element selector (visual picker) removed from active build pending refactor
+- **Popup**: Parallel init loading, cleaned up unused selector UI
+
 ### v3.2.0
-- **Visual Element Selector**: Pick Q&A elements directly on the page
-- **URL Pattern Rules**: Save and reuse selectors per LMS
-- **DOM Proximity Grouping**: Correlate questions with their answers
-- **Hybrid Extraction**: Selector-based Q&A + automatic SCORM/xAPI API detection
-- **Export/Import Rules**: Share selector rules as JSON files
-- **Enhanced API Detection**: Added TCAPI, TinCanAPI, xAPIWrapper, ADL support
-- **Smart CSS Generation**: 6 strategies for robust selectors
-- Removed unused constants.js
+- Visual element selector for picking Q&A elements
+- URL pattern rules with export/import
+- DOM proximity grouping
+- Hybrid extraction mode
 
 ### v3.1.0
-- **Critical Bug Fix**: Added code detection to prevent extracting JavaScript source code as Q&A content
-- Added `isCodeLike()` and `isNaturalLanguage()` content validators
-- More restrictive pattern matching for resource analysis
-- Skip SCORM runtime library files automatically
-- Improved confidence scoring (pattern matches now LOW confidence)
+- Code detection to prevent extracting JS source as Q&A content
+- More restrictive pattern matching
 
 ### v3.0.0
 - Complete architectural refactor
 - Modular code organization
-- Consistent error handling
 - Centralized state management
 
-### v2.2.0
-- Added DOM quiz extraction
-- Auto-select functionality
-- Spawned window tracking
-- Related windows UI
-
-### v2.1.0
-- Fixed export functionality
-- Added search filtering
-- Improved UX
-
-### v2.0.0
-- Articulate Storyline support
-- SCORM API detection
-- Initial release
+### v2.x
+- Articulate Storyline support, SCORM API detection, DOM quiz extraction, multi-window tracking
 
 ## License
 
