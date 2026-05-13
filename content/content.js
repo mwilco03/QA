@@ -32,7 +32,7 @@
         SHOW_PANEL: 'SHOW_PANEL'
     });
 
-    const LMS_HOSTS = /myworkday\.com|workday\.com|cornerstoneondemand|csod\.com|sumtotalsystems|successfactors|docebosaas|talentlms|litmos|skillsoft|moodle|blackboard|canvas|storyline|articulate|scorm|cmi5|aicc/i;
+    const LMS_HOSTS = /myworkday\.com|workday\.com|myworkdaycdn\.com|fifoundry\.net|cornerstoneondemand|csod\.com|sumtotalsystems|successfactors|docebosaas|talentlms|litmos|skillsoft|moodle|blackboard|canvas|storyline|articulate|scorm|cmi5|aicc/i;
 
     // ═══════════════════════════════════════════════════════════════════════════
     // STATE

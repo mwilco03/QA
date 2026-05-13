@@ -30,8 +30,10 @@ const LMS_URL_PATTERNS = [
     /scorm/i, /lms/i, /learn/i, /training/i, /course/i,
     /articulate/i, /storyline/i, /captivate/i, /lectora/i,
     /bravo/i, /moodle/i, /blackboard/i, /canvas/i,
-    // Workday Learning: tenants live on *.myworkday.com (wd1..wd103 pods + tenant subdomains)
-    /\.myworkday\.com/i, /\.workday\.com/i,
+    // Workday Learning: tenants live on *.myworkday.com (wd1..wd103 pods + tenant subdomains).
+    // Course content (Rustici SCORM Engine) is served from *.myworkdaycdn.com — different TLD,
+    // matched separately so we don't depend on the "/scorm/" path keyword.
+    /\.myworkday\.com/i, /\.workday\.com/i, /\.myworkdaycdn\.com/i,
     // Other common LMS hosts
     /cornerstoneondemand|csod\.com/i, /sumtotalsystems\.com/i, /successfactors\.com/i,
     /docebosaas\.com/i, /talentlms\.com/i, /litmos\.com/i, /skillsoft\.com/i
