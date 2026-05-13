@@ -21,13 +21,22 @@ const MSG = Object.freeze({
     CMI_DATA: 'CMI_DATA',
     TEST_RESULT: 'TEST_RESULT',
     SET_COMPLETION_RESULT: 'SET_COMPLETION_RESULT',
-    AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT'
+    AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT',
+    ADVANCE_MEDIA_RESULT: 'ADVANCE_MEDIA_RESULT',
+    CLICK_ADVANCE_RESULT: 'CLICK_ADVANCE_RESULT'
 });
 
 const LMS_URL_PATTERNS = [
     /scorm/i, /lms/i, /learn/i, /training/i, /course/i,
     /articulate/i, /storyline/i, /captivate/i, /lectora/i,
-    /bravo/i, /moodle/i, /blackboard/i, /canvas/i
+    /bravo/i, /moodle/i, /blackboard/i, /canvas/i,
+    // Workday Learning: tenants live on *.myworkday.com (wd1..wd103 pods + tenant subdomains).
+    // Course content (Rustici SCORM Engine) is served from *.myworkdaycdn.com — different TLD,
+    // matched separately so we don't depend on the "/scorm/" path keyword.
+    /\.myworkday\.com/i, /\.workday\.com/i, /\.myworkdaycdn\.com/i,
+    // Other common LMS hosts
+    /cornerstoneondemand|csod\.com/i, /sumtotalsystems\.com/i, /successfactors\.com/i,
+    /docebosaas\.com/i, /talentlms\.com/i, /litmos\.com/i, /skillsoft\.com/i
 ];
 
 const MAX_SCAN_HISTORY = 50;
@@ -339,6 +348,30 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     TabState.delete(tabId);
 });
 
+// Keyboard shortcut: toggle the in-page panel in the focused tab. Works
+// inside chromeless popup windows where the extension's toolbar icon is
+// hidden — this is how a user reaches the panel in a Workday-style launched
+// course window.
+if (chrome.commands?.onCommand) {
+    chrome.commands.onCommand.addListener(async (command) => {
+        if (command !== 'toggle-panel') return;
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.id) return;
+            // Make sure the content script is present (some popup windows may
+            // have loaded before the extension was installed/enabled).
+            await injectContentScript(tab.id).catch(() => {});
+            chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_PANEL' }, () => {
+                if (chrome.runtime.lastError) {
+                    log.debug(`toggle-panel: ${chrome.runtime.lastError.message}`);
+                }
+            });
+        } catch (e) {
+            log.error(`toggle-panel failed: ${e.message}`);
+        }
+    });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MESSAGE HANDLING
 // ═══════════════════════════════════════════════════════════════════════════
@@ -405,6 +438,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case MSG.AUTO_SELECT_RESULT:
             notifyPopup(MSG.AUTO_SELECT_RESULT, { tabId, ...message.payload });
+            break;
+
+        case MSG.ADVANCE_MEDIA_RESULT:
+            notifyPopup(MSG.ADVANCE_MEDIA_RESULT, { tabId, ...message.payload });
+            break;
+
+        case MSG.CLICK_ADVANCE_RESULT:
+            notifyPopup(MSG.CLICK_ADVANCE_RESULT, { tabId, ...message.payload });
             break;
 
         case MSG.STATE:

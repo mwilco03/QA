@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "LMS QA Validator",
-    "version": "3.4.0",
+    "version": "3.6.0",
     "description": "Extract Q&A content from LMS courses, detect SCORM/xAPI APIs, and validate eLearning content",
     
     "permissions": [
@@ -44,11 +44,22 @@
     "web_accessible_resources": [
         {
             "resources": [
-                "lib/lms-qa-validator.js"
+                "lib/lms-qa-validator.js",
+                "lib/in-page-panel.js"
             ],
             "matches": ["<all_urls>"]
         }
     ],
+
+    "commands": {
+        "toggle-panel": {
+            "suggested_key": {
+                "default": "Alt+L",
+                "mac": "Alt+L"
+            },
+            "description": "Toggle the LMS QA in-page panel"
+        }
+    },
     
     "icons": {
         "16": "icons/icon-16.png",

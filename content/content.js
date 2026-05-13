@@ -25,16 +25,45 @@
         INJECT: 'INJECT',
         PING: 'PING',
         DETECT_APIS: 'DETECT_APIS',
-        GET_FRAME_INFO: 'GET_FRAME_INFO'
+        GET_FRAME_INFO: 'GET_FRAME_INFO',
+        ADVANCE_MEDIA: 'ADVANCE_MEDIA',
+        CLICK_ADVANCE: 'CLICK_ADVANCE',
+        TOGGLE_PANEL: 'TOGGLE_PANEL',
+        SHOW_PANEL: 'SHOW_PANEL'
     });
+
+    const LMS_HOSTS = /myworkday\.com|workday\.com|myworkdaycdn\.com|fifoundry\.net|cornerstoneondemand|csod\.com|sumtotalsystems|successfactors|docebosaas|talentlms|litmos|skillsoft|moodle|blackboard|canvas|storyline|articulate|scorm|cmi5|aicc/i;
 
     // ═══════════════════════════════════════════════════════════════════════════
     // STATE
     // ═══════════════════════════════════════════════════════════════════════════
 
     let isInjected = false;
+    let isPanelInjected = false;
     const isTopFrame = window === window.top;
     const frameId = Math.random().toString(36).substr(2, 9);
+
+    function isLikelyChromelessPopup() {
+        try {
+            if (!window.opener || window.opener === window) return false;
+            // Chrome's window.open with feature string strips toolbar/menubar.
+            // toolbar visibility is hard to detect reliably across browsers, but
+            // outerHeight - innerHeight is a useful heuristic: full chrome adds
+            // ~80-120px, a chromeless popup adds only ~30-50px.
+            const chromeHeight = window.outerHeight - window.innerHeight;
+            return chromeHeight < 60;
+        } catch { return false; }
+    }
+
+    function shouldAutoShowPanel() {
+        if (!isTopFrame) return false;
+        try {
+            const url = window.location.href;
+            if (LMS_HOSTS.test(url)) return true;
+            if (isLikelyChromelessPopup()) return true;
+            return false;
+        } catch { return false; }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // LOGGING
@@ -58,19 +87,49 @@
 
         const script = document.createElement('script');
         script.src = chrome.runtime.getURL('lib/lms-qa-validator.js');
-        
+
         script.onload = function() {
             this.remove();
             isInjected = true;
             log.info('Validator injected');
         };
-        
+
         script.onerror = function() {
             log.error('Failed to inject validator');
             sendToExtension('INJECTION_FAILED', { error: 'Failed to load validator script' });
         };
 
         (document.head || document.documentElement).appendChild(script);
+    }
+
+    function injectPanel() {
+        if (!isTopFrame) return false;
+        if (isPanelInjected) return true;
+
+        const script = document.createElement('script');
+        script.src = chrome.runtime.getURL('lib/in-page-panel.js');
+        script.onload = function() {
+            this.remove();
+            isPanelInjected = true;
+            log.info('In-page panel injected');
+        };
+        script.onerror = function() {
+            log.error('Failed to inject panel');
+        };
+        (document.head || document.documentElement).appendChild(script);
+        return true;
+    }
+
+    function togglePanel() {
+        if (!isPanelInjected) {
+            injectPanel();
+            return;
+        }
+        // Panel is already in the page — tell it to toggle visibility
+        const script = document.createElement('script');
+        script.textContent = 'window.LMS_QA_PANEL && window.LMS_QA_PANEL.toggle();';
+        (document.head || document.documentElement).appendChild(script);
+        script.remove();
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -107,6 +166,12 @@
 
         const { type, payload, timestamp } = event.data;
         const messageType = type.replace(PREFIX, '');
+
+        // Panel asks us to inject the validator
+        if (messageType === 'PANEL_REQUEST_INJECT') {
+            injectValidator();
+            return;
+        }
 
         // Skip command messages (those go TO the page, not FROM it)
         if (messageType.startsWith('CMD_')) return;
@@ -182,6 +247,36 @@
             } else {
                 sendToPage('CMD_DETECT_APIS');
             }
+            return { success: true };
+        },
+
+        [CMD.ADVANCE_MEDIA]: (message) => {
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_ADVANCE_MEDIA', { mode: message.mode || 'end' }), 100);
+            } else {
+                sendToPage('CMD_ADVANCE_MEDIA', { mode: message.mode || 'end' });
+            }
+            return { success: true };
+        },
+
+        [CMD.CLICK_ADVANCE]: (message) => {
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_CLICK_ADVANCE', { allMatching: !!message.allMatching }), 100);
+            } else {
+                sendToPage('CMD_CLICK_ADVANCE', { allMatching: !!message.allMatching });
+            }
+            return { success: true };
+        },
+
+        [CMD.TOGGLE_PANEL]: () => {
+            togglePanel();
+            return { success: true };
+        },
+
+        [CMD.SHOW_PANEL]: () => {
+            injectPanel();
             return { success: true };
         },
 
@@ -261,6 +356,18 @@
         }
     } catch (e) {
         // Cross-origin - can't access opener
+    }
+
+    // Auto-show the in-page panel on LMS pages and chromeless popup windows
+    // where the extension toolbar icon is not reachable. This is the main fix
+    // for Workday Learning's launched popup window.
+    if (shouldAutoShowPanel()) {
+        const start = () => injectPanel();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', start, { once: true });
+        } else {
+            start();
+        }
     }
 
 })();

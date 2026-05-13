@@ -29,7 +29,9 @@
         SET_COMPLETION_RESULT: 'SET_COMPLETION_RESULT',
         CMI_DATA: 'CMI_DATA',
         AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT',
-        STATE_UPDATE: 'STATE_UPDATE'
+        STATE_UPDATE: 'STATE_UPDATE',
+        ADVANCE_MEDIA_RESULT: 'ADVANCE_MEDIA_RESULT',
+        CLICK_ADVANCE_RESULT: 'CLICK_ADVANCE_RESULT'
     });
 
     const STATUS = Object.freeze({
@@ -116,7 +118,7 @@
             'qa-count', 'apis-count', 'correct-count', 'logs-count',
             'scorm-controls', 'completion-status', 'completion-score',
             'btn-test-api', 'btn-set-completion',
-            'quick-actions', 'btn-auto-select',
+            'quick-actions', 'btn-auto-select', 'btn-skip-media', 'btn-fast-media', 'btn-click-advance', 'btn-show-panel',
             'btn-export-json', 'btn-export-csv', 'btn-export-txt',
             'toast'
         ];
@@ -534,6 +536,40 @@
             `;
         },
 
+        async skipMedia() {
+            try {
+                await Extension.sendToContent('ADVANCE_MEDIA', { mode: 'end' });
+            } catch (error) {
+                Toast.error('Failed to advance media');
+            }
+        },
+
+        async fastMedia() {
+            try {
+                await Extension.sendToContent('ADVANCE_MEDIA', { mode: 'fast' });
+            } catch (error) {
+                Toast.error('Failed to speed up media');
+            }
+        },
+
+        async clickAdvance() {
+            try {
+                await Extension.sendToContent('CLICK_ADVANCE', { allMatching: false });
+            } catch (error) {
+                Toast.error('Failed to click advance');
+            }
+        },
+
+        async showPanel() {
+            try {
+                await Extension.sendToContent('SHOW_PANEL');
+                Toast.success('Panel shown in page');
+                window.close();
+            } catch (error) {
+                Toast.error('Failed to inject panel: ' + error.message);
+            }
+        },
+
         export(format) {
             const results = State.results;
             if (!results) {
@@ -704,6 +740,23 @@
             }
         },
 
+        [MSG.ADVANCE_MEDIA_RESULT]: (payload) => {
+            if (payload.count > 0) {
+                Toast.success(`Advanced ${payload.count} media element(s)`);
+            } else {
+                Toast.info('No video/audio found in this frame tree');
+            }
+        },
+
+        [MSG.CLICK_ADVANCE_RESULT]: (payload) => {
+            if (payload.clicked > 0) {
+                const label = payload.labels?.[0] || '';
+                Toast.success(`Clicked "${label}" (${payload.candidates} candidate${payload.candidates === 1 ? '' : 's'})`);
+            } else {
+                Toast.info('No advance/next button found');
+            }
+        },
+
         [MSG.STATE_UPDATE]: (payload) => {
             if (payload.results) {
                 Renderer.renderAll(payload.results);
@@ -734,6 +787,10 @@
 
         // Quick actions
         $.btnAutoSelect?.addEventListener('click', () => Actions.autoSelect());
+        $.btnSkipMedia?.addEventListener('click', () => Actions.skipMedia());
+        $.btnFastMedia?.addEventListener('click', () => Actions.fastMedia());
+        $.btnClickAdvance?.addEventListener('click', () => Actions.clickAdvance());
+        $.btnShowPanel?.addEventListener('click', () => Actions.showPanel());
 
         // Export
         $.btnExportJson?.addEventListener('click', () => Actions.export('json'));

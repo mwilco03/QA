@@ -1,4 +1,4 @@
-# LMS QA Validator v3.4.0
+# LMS QA Validator v3.6.0
 
 A Chrome extension for validating eLearning content delivery. Detects and interacts with **SCORM 1.2**, **SCORM 2004**, **xAPI**, **AICC**, and **CMI5** APIs. Extracts Q&A content, tests API connectivity, and sets completion/scores — all from the browser.
 
@@ -183,9 +183,90 @@ Open `tests/test-runner.html` in a browser to run the unit test suite.
 - Consistent error handling with try/catch throughout
 - Debounced UI operations
 
+## Workday Learning notes
+
+Workday Learning launches courses in a **new popup window** (not an inline
+iframe). The SCORM API adapter lives on the **top window of that popup**, and
+the SCO content typically sits 2–3 same-origin frames below. Earlier versions
+only walked the parent chain from the active frame, which missed the API when
+the popup was inspected from its top window.
+
+v3.5.0 changes that help on Workday:
+
+- API discovery now does the full ADL find-API algorithm (parent chain →
+  opener chain → opener.top) **plus** a BFS into same-origin child iframes.
+- `*.myworkday.com` / `*.workday.com` are matched by the content-script
+  auto-injection rules, so the extension is ready as soon as the popup loads.
+- The popup adds three controls under **Quick Actions**:
+  - **Skip Video** — seeks every `<video>`/`<audio>` in the tab and all
+    same-origin frames to its end and dispatches `ended`, which is what most
+    LMS players watch to unlock the Next button.
+  - **Fast Media** — sets `playbackRate = 16` on every media element.
+  - **Click Next** — finds and clicks the first visible button whose label
+    matches Next / Continue / Proceed / Complete / Submit / Done / I Agree /
+    Acknowledge / Got it.
+
+Workflow: launch the course → in the new popup window click the extension
+icon → **Scan Page** → use **SCORM Controls** to mark the SCO complete, or
+the new media/click controls for video-gated steps. If you are still on the
+Workday SPA tab when you click the extension, use the **Related Windows**
+section to jump to (or remotely scan) the course popup tab.
+
+> The extension only calls the same JavaScript APIs the LMS player itself
+> would call. Whether or not it is appropriate to apply these to mandatory
+> training your employer assigns you is a judgment call you need to make. If
+> you are using this for content-authoring QA or for testing your own
+> internally-shipped courses, it works as a SCORM debugger / inspector.
+
+## In-Page Panel (for chromeless popup windows)
+
+LMS course launchers like Workday Learning open content in a new browser
+window with the toolbar hidden, so the extension's icon is unreachable in
+that window. v3.6.0 ships a draggable in-page toolbar that is injected
+directly into the page DOM (Shadow-DOM, won't conflict with page styles).
+
+It exposes the same actions as the extension popup:
+- **Scan** — run a full LMS API + Q&A scan
+- **Skip Video / Fast ×16** — advance media in the frame tree
+- **Click Next** — click the first visible advance-style button
+- **Set** — set SCORM completion with status + score
+- **Auto-Run** — loop scan → skip → next every 2.5s, stop after 4 cycles
+  with no progress (or click Stop)
+
+Three ways to summon it:
+
+1. **Automatic** — on `*.myworkday.com` (and other matched LMS hosts), or
+   in any chromeless popup window with an opener, the panel appears by
+   itself.
+2. **Keyboard shortcut** — `Alt+L` toggles it in the focused tab (works
+   inside popup windows where you can't reach the extension icon).
+3. **Extension popup** — click **Show In-Page Panel (Alt+L)** from a
+   normal tab; the panel is injected and the extension popup closes.
+
+The header is draggable, the `−` button collapses it, the `×` button
+removes it from the page. Position and collapsed state persist in
+`localStorage` per origin.
+
 ## Version History
 
-### v3.4.0 (Current)
+### v3.6.0 (Current)
+- **In-page panel**: Shadow-DOM toolbar injected into LMS pages and
+  chromeless popup windows so the extension's commands are reachable when
+  the toolbar icon is hidden. Includes Auto-Run loop with stall detection.
+- **Keyboard shortcut**: `Alt+L` toggles the panel via `chrome.commands`.
+- **Manifest**: new `commands` declaration, panel script added to
+  `web_accessible_resources`.
+
+### v3.5.0
+- **Workday Learning support**: domain auto-injection, child-iframe BFS for
+  API discovery, full ADL find-API algorithm (parent chain + opener chain +
+  opener.top), and frame-tree-aware media/button controls.
+- **MediaController**: `Skip Video`, `Fast Media`, `Click Next` quick actions
+  that traverse same-origin frames.
+- **Other LMS hosts** added to URL patterns: Cornerstone, SumTotal,
+  SuccessFactors, Docebo, TalentLMS, Litmos, Skillsoft.
+
+### v3.4.0
 - **SCORM 1.2**: Added `LMSFinish` to completion flow, `cmi.core.exit`, `score.min/max`, error checking
 - **SCORM 2004**: Fixed invalid `'passed'` in `completion_status`, added `success_status`, `Terminate`, `cmi.exit`
 - **xAPI**: Fixed detection to traverse `ADL.XAPIWrapper`, added `TinCan` namespace, completion statements

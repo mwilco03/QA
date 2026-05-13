@@ -1,0 +1,5 @@
+.DS_Store
+tests/playwright/node_modules/
+tests/playwright/.user-data/
+tests/playwright/.extension-id
+tests/playwright/package-lock.json
