@@ -1,4 +1,4 @@
-# LMS QA Validator v3.5.0
+# LMS QA Validator v3.6.0
 
 A Chrome extension for validating eLearning content delivery. Detects and interacts with **SCORM 1.2**, **SCORM 2004**, **xAPI**, **AICC**, and **CMI5** APIs. Extracts Q&A content, tests API connectivity, and sets completion/scores — all from the browser.
 
@@ -218,9 +218,46 @@ section to jump to (or remotely scan) the course popup tab.
 > you are using this for content-authoring QA or for testing your own
 > internally-shipped courses, it works as a SCORM debugger / inspector.
 
+## In-Page Panel (for chromeless popup windows)
+
+LMS course launchers like Workday Learning open content in a new browser
+window with the toolbar hidden, so the extension's icon is unreachable in
+that window. v3.6.0 ships a draggable in-page toolbar that is injected
+directly into the page DOM (Shadow-DOM, won't conflict with page styles).
+
+It exposes the same actions as the extension popup:
+- **Scan** — run a full LMS API + Q&A scan
+- **Skip Video / Fast ×16** — advance media in the frame tree
+- **Click Next** — click the first visible advance-style button
+- **Set** — set SCORM completion with status + score
+- **Auto-Run** — loop scan → skip → next every 2.5s, stop after 4 cycles
+  with no progress (or click Stop)
+
+Three ways to summon it:
+
+1. **Automatic** — on `*.myworkday.com` (and other matched LMS hosts), or
+   in any chromeless popup window with an opener, the panel appears by
+   itself.
+2. **Keyboard shortcut** — `Alt+L` toggles it in the focused tab (works
+   inside popup windows where you can't reach the extension icon).
+3. **Extension popup** — click **Show In-Page Panel (Alt+L)** from a
+   normal tab; the panel is injected and the extension popup closes.
+
+The header is draggable, the `−` button collapses it, the `×` button
+removes it from the page. Position and collapsed state persist in
+`localStorage` per origin.
+
 ## Version History
 
-### v3.5.0 (Current)
+### v3.6.0 (Current)
+- **In-page panel**: Shadow-DOM toolbar injected into LMS pages and
+  chromeless popup windows so the extension's commands are reachable when
+  the toolbar icon is hidden. Includes Auto-Run loop with stall detection.
+- **Keyboard shortcut**: `Alt+L` toggles the panel via `chrome.commands`.
+- **Manifest**: new `commands` declaration, panel script added to
+  `web_accessible_resources`.
+
+### v3.5.0
 - **Workday Learning support**: domain auto-injection, child-iframe BFS for
   API discovery, full ADL find-API algorithm (parent chain + opener chain +
   opener.top), and frame-tree-aware media/button controls.

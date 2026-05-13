@@ -118,7 +118,7 @@
             'qa-count', 'apis-count', 'correct-count', 'logs-count',
             'scorm-controls', 'completion-status', 'completion-score',
             'btn-test-api', 'btn-set-completion',
-            'quick-actions', 'btn-auto-select', 'btn-skip-media', 'btn-fast-media', 'btn-click-advance',
+            'quick-actions', 'btn-auto-select', 'btn-skip-media', 'btn-fast-media', 'btn-click-advance', 'btn-show-panel',
             'btn-export-json', 'btn-export-csv', 'btn-export-txt',
             'toast'
         ];
@@ -560,6 +560,16 @@
             }
         },
 
+        async showPanel() {
+            try {
+                await Extension.sendToContent('SHOW_PANEL');
+                Toast.success('Panel shown in page');
+                window.close();
+            } catch (error) {
+                Toast.error('Failed to inject panel: ' + error.message);
+            }
+        },
+
         export(format) {
             const results = State.results;
             if (!results) {
@@ -780,6 +790,7 @@
         $.btnSkipMedia?.addEventListener('click', () => Actions.skipMedia());
         $.btnFastMedia?.addEventListener('click', () => Actions.fastMedia());
         $.btnClickAdvance?.addEventListener('click', () => Actions.clickAdvance());
+        $.btnShowPanel?.addEventListener('click', () => Actions.showPanel());
 
         // Export
         $.btnExportJson?.addEventListener('click', () => Actions.export('json'));

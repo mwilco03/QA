@@ -346,6 +346,30 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     TabState.delete(tabId);
 });
 
+// Keyboard shortcut: toggle the in-page panel in the focused tab. Works
+// inside chromeless popup windows where the extension's toolbar icon is
+// hidden — this is how a user reaches the panel in a Workday-style launched
+// course window.
+if (chrome.commands?.onCommand) {
+    chrome.commands.onCommand.addListener(async (command) => {
+        if (command !== 'toggle-panel') return;
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.id) return;
+            // Make sure the content script is present (some popup windows may
+            // have loaded before the extension was installed/enabled).
+            await injectContentScript(tab.id).catch(() => {});
+            chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_PANEL' }, () => {
+                if (chrome.runtime.lastError) {
+                    log.debug(`toggle-panel: ${chrome.runtime.lastError.message}`);
+                }
+            });
+        } catch (e) {
+            log.error(`toggle-panel failed: ${e.message}`);
+        }
+    });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MESSAGE HANDLING
 // ═══════════════════════════════════════════════════════════════════════════
