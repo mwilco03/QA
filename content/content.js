@@ -25,7 +25,9 @@
         INJECT: 'INJECT',
         PING: 'PING',
         DETECT_APIS: 'DETECT_APIS',
-        GET_FRAME_INFO: 'GET_FRAME_INFO'
+        GET_FRAME_INFO: 'GET_FRAME_INFO',
+        ADVANCE_MEDIA: 'ADVANCE_MEDIA',
+        CLICK_ADVANCE: 'CLICK_ADVANCE'
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -181,6 +183,26 @@
                 setTimeout(() => sendToPage('CMD_DETECT_APIS'), 100);
             } else {
                 sendToPage('CMD_DETECT_APIS');
+            }
+            return { success: true };
+        },
+
+        [CMD.ADVANCE_MEDIA]: (message) => {
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_ADVANCE_MEDIA', { mode: message.mode || 'end' }), 100);
+            } else {
+                sendToPage('CMD_ADVANCE_MEDIA', { mode: message.mode || 'end' });
+            }
+            return { success: true };
+        },
+
+        [CMD.CLICK_ADVANCE]: (message) => {
+            if (!isInjected) {
+                injectValidator();
+                setTimeout(() => sendToPage('CMD_CLICK_ADVANCE', { allMatching: !!message.allMatching }), 100);
+            } else {
+                sendToPage('CMD_CLICK_ADVANCE', { allMatching: !!message.allMatching });
             }
             return { success: true };
         },

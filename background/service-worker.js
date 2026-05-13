@@ -21,13 +21,20 @@ const MSG = Object.freeze({
     CMI_DATA: 'CMI_DATA',
     TEST_RESULT: 'TEST_RESULT',
     SET_COMPLETION_RESULT: 'SET_COMPLETION_RESULT',
-    AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT'
+    AUTO_SELECT_RESULT: 'AUTO_SELECT_RESULT',
+    ADVANCE_MEDIA_RESULT: 'ADVANCE_MEDIA_RESULT',
+    CLICK_ADVANCE_RESULT: 'CLICK_ADVANCE_RESULT'
 });
 
 const LMS_URL_PATTERNS = [
     /scorm/i, /lms/i, /learn/i, /training/i, /course/i,
     /articulate/i, /storyline/i, /captivate/i, /lectora/i,
-    /bravo/i, /moodle/i, /blackboard/i, /canvas/i
+    /bravo/i, /moodle/i, /blackboard/i, /canvas/i,
+    // Workday Learning: tenants live on *.myworkday.com (wd1..wd103 pods + tenant subdomains)
+    /\.myworkday\.com/i, /\.workday\.com/i,
+    // Other common LMS hosts
+    /cornerstoneondemand|csod\.com/i, /sumtotalsystems\.com/i, /successfactors\.com/i,
+    /docebosaas\.com/i, /talentlms\.com/i, /litmos\.com/i, /skillsoft\.com/i
 ];
 
 const MAX_SCAN_HISTORY = 50;
@@ -405,6 +412,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case MSG.AUTO_SELECT_RESULT:
             notifyPopup(MSG.AUTO_SELECT_RESULT, { tabId, ...message.payload });
+            break;
+
+        case MSG.ADVANCE_MEDIA_RESULT:
+            notifyPopup(MSG.ADVANCE_MEDIA_RESULT, { tabId, ...message.payload });
+            break;
+
+        case MSG.CLICK_ADVANCE_RESULT:
+            notifyPopup(MSG.CLICK_ADVANCE_RESULT, { tabId, ...message.payload });
             break;
 
         case MSG.STATE:
